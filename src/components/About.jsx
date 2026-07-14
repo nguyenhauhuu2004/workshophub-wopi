@@ -52,7 +52,7 @@ const TAGS = [
 ];
 
 const RESUME_URL =
-  "https://drive.google.com/file/;
+  "https://drive.google.com/file/";
 
 export default memo(function About() {
   const socialLinksElements = useMemo(
