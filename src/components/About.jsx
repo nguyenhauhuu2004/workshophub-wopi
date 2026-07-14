@@ -26,17 +26,17 @@ Tag.displayName = "Tag";
 
 const SOCIAL_LINKS = [
   {
-    href: "https://github.com/shashank2401",
+    href: "https://github.com/nguyenhauhuu2004",
     icon: <Github className="w-5 h-5" />,
     title: "GitHub",
   },
   {
-    href: "https://www.linkedin.com/in/shashankraj2401/",
+    href: "https://www.linkedin.com/in/",
     icon: <Linkedin className="w-5 h-5" />,
     title: "LinkedIn",
   },
   {
-    href: "mailto:shashankraj0124@gmail.com",
+    href: "mailto:nguyenhauhuu2004@gmail.com",
     icon: <Mail className="w-5 h-5" />,
     title: "Email",
   },
@@ -52,7 +52,7 @@ const TAGS = [
 ];
 
 const RESUME_URL =
-  "https://drive.google.com/file/d/1FIq3CNO73-M9GXjIhZAYo49gQGxgmudO/view?usp=sharing";
+  "https://drive.google.com/file/;
 
 export default memo(function About() {
   const socialLinksElements = useMemo(
@@ -124,18 +124,15 @@ export default memo(function About() {
 
           <div className="flex items-center justify-center md:justify-start gap-2 text-muted-foreground text-sm mb-2">
             <GraduationCap className="w-4 h-4" />
-            <span>IIT (BHU) Varanasi</span>
+            <span>An Giang University</span>
           </div>
 
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-xl mb-4 text-center md:text-left">
-            I'm a passionate student with a strong interest in{" "}
+            I'm a Computer Science student at{" "}
             <span className="text-foreground font-medium">
-              competitive programming
+              An Giang University
             </span>{" "}
-            and tackling challenging problems. I love crafting efficient
-            solutions and exploring new technologies. My journey in tech
-            combines rigorous academic training with hands-on project
-            experience.
+            with a strong passion for software development, web technologies, and problem-solving. I enjoy building practical applications, learning modern frameworks, and continuously improving my programming skills through real-world projects.
           </p>
 
           <div className="flex flex-wrap gap-2 mb-4 justify-center md:justify-start">
