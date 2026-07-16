@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils'
 import Logo from '@/assets/svg/logo'
 import { MenuIcon } from "lucide-react"
 import { useEffect, useState } from 'react'
-import { useNavigate } from "react-router";
 
 export type NavigationSection = {
   title: string
@@ -31,7 +30,6 @@ type HeaderProps = {
 
 const Header = ({ navigationData, className }: HeaderProps) => {
   const [scrolled, setScrolled] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
