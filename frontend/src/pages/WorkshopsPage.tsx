@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { Link, useSearchParams } from "react-router";
+import {  useSearchParams } from "react-router";
 import { motion } from "framer-motion";
-import { Search, Star, Clock, Users, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { WORKSHOPS, CATEGORIES } from "@/data";
 import WorkshopCard from "@/components/WorkshopCard";
 import Header, { type NavigationSection } from "@/components/layout/header";
