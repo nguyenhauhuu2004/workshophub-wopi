@@ -8,6 +8,7 @@ import {Button} from '@/components/ui/button'
 import {Search, MapPin} from "lucide-react"
 import {Input} from "@/components/ui/input"
 import {Separator} from "@/components/ui/separator"
+import Footer from "@/components/layout/footer"
 const navigationData: NavigationSection[] = [
   {
     title: 'Home',
@@ -165,6 +166,7 @@ const HomePage = () => {
 
 
       </main>
+      <Footer/>
     </div>
   )
 }

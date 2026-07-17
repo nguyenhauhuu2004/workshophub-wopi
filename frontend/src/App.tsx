@@ -6,6 +6,7 @@ import SignUpPage from "./pages/SignUpPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import HomePage from "./pages/HomePage";
 import { ThemeProvider } from "@/components/theme-provider"
+import { WorkshopsPage } from "./pages/WorkshopsPage";
 
 
 function App() {
@@ -31,6 +32,11 @@ function App() {
             <Route
               path="/"
               element={<HomePage />}
+            />
+
+            <Route
+              path="/workshops"
+              element={<WorkshopsPage />}
             />
     
 
