@@ -1,8 +1,13 @@
 import HeroSection from '@/components/shadcn-studio/blocks/hero-section-01/hero-section-01'
-import Header from '@/components/shadcn-studio/blocks/hero-section-01/header'
+import Header from '@/components/layout/header'
 import Gallery from '@/components/shadcn-studio/blocks/gallery-component-01/gallery-component-01'
-import type { NavigationSection } from '@/components/shadcn-studio/blocks/hero-section-01/header'
-
+import type { NavigationSection } from '@/components/layout/header'
+import { Crown } from 'lucide-react'
+import WorkshopCard from '@/components/WorkshopCard'
+import {Button} from '@/components/ui/button'
+import {Search, MapPin} from "lucide-react"
+import {Input} from "@/components/ui/input"
+import {Separator} from "@/components/ui/separator"
 const navigationData: NavigationSection[] = [
   {
     title: 'Home',
@@ -94,6 +99,71 @@ const HomePage = () => {
       <main className='flex flex-col'>
         <HeroSection />
         <Gallery sections={gallerySections} />
+
+        <section id="priority" className="mx-auto max-w-360 px-5 pt-12">
+          <div className="mb-4 flex items-center gap-2">
+            <Crown className="text-primary" size={20} />
+            <h2 className="font-display text-2xl font-700">Workshop được tài trợ</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <WorkshopCard />
+            <WorkshopCard />
+            <WorkshopCard />
+          </div>
+          <div className="mb-4 flex items-center gap-2 mt-8">
+            <h2 className="font-display text-2xl font-700">Khám phá tất cả workshop</h2>
+          </div>
+          <div>
+            {/* Search bar */}
+          <form
+            // onSubmit={handleSearch}
+            className="flex flex-col gap-2 rounded-xl bg-background/95 p-3 shadow-2xl backdrop-blur sm:flex-row"
+          >
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Bạn muốn học gì hôm nay?"
+                className="border-0 pl-9 shadow-none focus-visible:ring-0"
+                // value={searchQuery}
+                // onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Separator orientation="vertical" className="hidden h-8 self-center sm:block" />
+            <div className="relative sm:w-48">
+              <MapPin className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Quận / Huyện"
+                className="border-0 pl-9 shadow-none focus-visible:ring-0"
+                // value={searchDistrict}
+                // onChange={(e) => setSearchDistrict(e.target.value)}
+              />
+            </div>
+            <Button type="submit" size="lg" className="shrink-0">
+              Tìm Kiếm
+            </Button>
+          </form>
+
+          <div className="mt-4 flex flex-wrap gap-2 mb-4">
+            {["Làm Gốm", "Vẽ Tranh", "Làm Nến", "Cắm Hoa"].map((tag) => (
+              <button
+                key={tag}
+                // onClick={() => navigate(`/search?q=${tag}`)}
+                className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-sm text-foreground backdrop-blur transition-colors hover:bg-white/20"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <WorkshopCard />
+            <WorkshopCard />
+            <WorkshopCard />
+          </div>
+          </div>
+        </section>
+
+
       </main>
     </div>
   )
