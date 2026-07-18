@@ -97,7 +97,7 @@
 		"deploy": "wrangler deploy",
 		"dev": "vite",
 		"lint": "eslint .",
-		"preview": "npm run build"
+		"preview": "npm run build && vite preview"
 	},
 	"type": "module"
 }
