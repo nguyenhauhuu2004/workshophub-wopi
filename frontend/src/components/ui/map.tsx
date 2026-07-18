@@ -450,7 +450,7 @@ function MapLayersControl({
     layerGroupsLabel?: string
     position?: string
 }) {
-    const map = useMap()
+    // const map = useMap()
     const layersContext = useMapLayersContext()
     if (!layersContext) {
         throw new Error("MapLayersControl must be used within MapLayers")
