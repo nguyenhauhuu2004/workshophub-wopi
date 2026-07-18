@@ -7,6 +7,8 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import HomePage from "./pages/HomePage";
 import { ThemeProvider } from "@/components/theme-provider"
 import { WorkshopsPage } from "./pages/WorkshopsPage";
+import { WorkshopDetail } from "./pages/WorkshopDetail";
+import { CreateWorkshopPage } from "./pages/CreateWorkshopPage";
 
 
 function App() {
@@ -24,6 +26,14 @@ function App() {
             <Route
               path="/signin"
               element={<SignInPage />}
+            />
+            <Route
+              path="/workshopDetail"
+              element={<WorkshopDetail />}
+            />
+            <Route
+              path="/createWorkshop"
+              element={<CreateWorkshopPage />}
             />
             <Route
               path="/signup"

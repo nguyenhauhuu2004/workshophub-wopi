@@ -22,6 +22,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@shadcn-studio": "https://shadcnstudio.com/r/{style}/{name}.json"
+    "@shadcn-studio": "https://shadcnstudio.com/r/{style}/{name}.json",
+    "@shadcn-map": "http://shadcn-map.vercel.app/r/{name}.json"
   }
 }

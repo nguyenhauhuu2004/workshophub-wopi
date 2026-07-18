@@ -13,7 +13,7 @@ const CardProductDemo = () => {
   const [liked, setLiked] = useState<boolean>(false)
 
   return (
-    <a href="/signin">
+    <a href="/workshopDetail">
     <div className='relative max-w-md rounded-xl bg-background shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer'>
       <div className='flex h-60 items-center justify-center'>
         <img
