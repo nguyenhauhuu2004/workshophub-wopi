@@ -494,7 +494,8 @@ function MapLayersControl({
             <DropdownMenuContent
                 align="end"
                 className="z-1000"
-                container={map.getContainer()}>
+                // container={map.getContainer()}
+                >
                 {showTileLayersDropdown && (
                     <>
                         <DropdownMenuLabel>{tileLayersLabel}</DropdownMenuLabel>
