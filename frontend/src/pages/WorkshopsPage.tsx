@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { WORKSHOPS, CATEGORIES } from "@/data";
 import WorkshopCard from "@/components/WorkshopCard";
-import Header, { type NavigationSection } from "@/components/layout/header";
 
 import {
   Combobox,
@@ -22,24 +21,7 @@ const frameworks = [
   "Astro",
 ] as const
 
-const navigationData: NavigationSection[] = [
-  {
-    title: 'Home',
-    href: '#'
-  },
-  {
-    title: 'Products',
-    href: '#'
-  },
-  {
-    title: 'About Us',
-    href: '#'
-  },
-  {
-    title: 'Contact Us',
-    href: '#'
-  }
-]
+
 
 
 export function WorkshopsPage() {
@@ -65,7 +47,6 @@ export function WorkshopsPage() {
 
   return (
 <div className="relative">
-          <Header navigationData={navigationData}  />
 
     <div className="min-h-screen bg-[#FAFAF7] pt-16">
       {/* Hero strip */}
