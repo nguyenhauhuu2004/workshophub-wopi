@@ -150,7 +150,7 @@ const HomePage = () => {
             {/* Search bar */}
           <form
             // onSubmit={handleSearch}
-            className="flex flex-col gap-2 rounded-xl bg-background/95 p-3 shadow-2xl backdrop-blur sm:flex-row"
+            className="w-full flex flex-col gap-2 rounded-xl bg-background/95 p-3 shadow-2xl backdrop-blur sm:flex-row"
           >
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
