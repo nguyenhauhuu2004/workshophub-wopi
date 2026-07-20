@@ -13,6 +13,9 @@ export const useAuthStore = create<AuthState>()(
       setAccessToken: (accessToken) => {
         set({ accessToken });
       },
+      setUser: (user) => {
+        set({ user });
+      },
       clearState: () => {
         set({ accessToken: null, user: null, loading: false });
         localStorage.clear();
@@ -107,3 +110,7 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
+
+export interface UserState {
+  updateAvatarUrl: (formData: FormData) => Promise<void>;
+}

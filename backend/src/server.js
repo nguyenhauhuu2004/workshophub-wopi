@@ -6,6 +6,7 @@ import userRoute from "./routes/userRoute.js";
 import cookieParser from "cookie-parser";
 import { protectedRoute } from "./middlewares/authMiddleware.js";
 import cors from "cors";
+import { v2 as cloudinary } from "cloudinary";
 
 dotenv.config();
 
@@ -16,6 +17,13 @@ const PORT = process.env.PORT || 5001;
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+
+// Configuration cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // public routes
 app.use("/api/auth", authRoute);
