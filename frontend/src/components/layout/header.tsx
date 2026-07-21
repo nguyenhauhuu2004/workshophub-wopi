@@ -105,13 +105,22 @@ const Header = ({ navigationData, className }: HeaderProps) => {
           {/* theme Button */}
           <div className="hidden gap-4 md:flex">
             <DropdownMenu>
-              <DropdownMenuTrigger>
-                <Button variant="outline" size="icon">
-                  <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-                  <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-                  <span className="sr-only">Toggle theme</span>
-                </Button>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Đổi giao diện"
+                  >
+                    <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+
+                    <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+
+                    <span className="sr-only">Toggle theme</span>
+                  </Button>
+                }
+              />
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setTheme("light")}>
                   Light
@@ -124,64 +133,51 @@ const Header = ({ navigationData, className }: HeaderProps) => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* Login Button */}
-
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <button
-                      type="button"
-                      className="rounded-full"
-                      aria-label="Mở menu tài khoản"
-                    />
-                  }
-                >
-                  <UserAvatar
-                    name={user.displayName}
-                    type="sidebar"
-                    avatarUrl={user.avatarUrl}
-                  />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => setProfileOpen(true)}>
-                      Tài khoản
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={handleLogout}
-                  >
-                    Đăng xuất
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Button
-                size="lg"
-                className="max-md:hidden"
-                render={<a href="/signin" />}
-                nativeButton={false}
-              >
-                Login
-              </Button>
-            )}
           </div>
+          {/* Login Button */}
 
-          {/* Navigation for small screens */}
-          <div className="flex gap-4 md:hidden">
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className="rounded-full"
+                    aria-label="Mở menu tài khoản"
+                  />
+                }
+              >
+                <UserAvatar
+                  name={user.displayName}
+                  type="sidebar"
+                  avatarUrl={user.avatarUrl}
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                    Tài khoản
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                  Đăng xuất
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
             <Button
               size="lg"
+              className="max-md:hidden"
               render={<a href="/signin" />}
               nativeButton={false}
             >
               Login
             </Button>
-
+          )}
+          {/* Navigation for small screens */}
+          <div className="flex gap-4 md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="outline" size="icon-lg" />}
