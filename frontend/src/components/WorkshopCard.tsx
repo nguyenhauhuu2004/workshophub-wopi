@@ -27,7 +27,7 @@ type WorkshopCardProps = {
 
 const WorkshopCard = ({ workshop }: WorkshopCardProps) => {
   return (
-    <article className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-lg">
+    <article className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-lg hover:scale-105">
       <Link to={`/workshops/${workshop._id}`}>
         <img
           src={workshop.thumbnail?.url || "/images/workshop-placeholder.jpg"}
