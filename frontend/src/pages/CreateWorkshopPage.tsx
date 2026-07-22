@@ -25,11 +25,11 @@ import {
   type WorkshopPayload,
 } from "@/services/workshopService";
 
-type WorkshopMedia = {
-  url: string;
-  publicId: string;
-  resourceType: "image" | "video";
-};
+// type WorkshopMedia = {
+//   url: string;
+//   publicId: string;
+//   resourceType: "image" | "video";
+// };
 
 export type WorkshopLocation = {
   address: string;
@@ -61,7 +61,7 @@ interface Schedule {
 export function CreateWorkshopPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const existing = id ? WORKSHOPS.find((w) => w.id === Number(id)) : undefined;
+  // const existing = id ? WORKSHOPS.find((w) => w.id === Number(id)) : undefined;
 
   const [step, setStep] = useState<Step>(0);
   const [saving, setSaving] = useState(false);
