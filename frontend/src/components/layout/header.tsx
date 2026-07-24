@@ -148,7 +148,7 @@ const Header = ({ navigationData, className }: HeaderProps) => {
                 }
               >
                 <UserAvatar
-                  name={user.displayName}
+                  name={user.displayName ?? ""}
                   type="sidebar"
                   avatarUrl={user.avatarUrl}
                 />
