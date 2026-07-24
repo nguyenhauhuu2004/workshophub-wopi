@@ -24,3 +24,35 @@ export const uploadImageFromBuffer = (buffer, option) => {
     uploadStream.end(buffer);
   });
 };
+
+export const uploadMediaFromBuffer = (file, options = {}) => {
+  return new Promise((resolve, reject) => {
+    const isImage = file.mimetype.startsWith("image/");
+
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder: "wopy/workshops",
+          resource_type: isImage ? "image" : "video",
+
+          ...(isImage && {
+            transformation: [
+              {
+                width: 1000,
+                crop: "limit",
+                quality: "auto",
+                fetch_format: "auto",
+              },
+            ],
+          }),
+
+          ...options,
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        },
+      )
+      .end(file.buffer);
+  });
+};

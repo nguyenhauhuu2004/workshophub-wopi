@@ -43,14 +43,73 @@ export type WorkshopQuery = {
   sponsored?: boolean;
 };
 
+export type WorkshopListItem = {
+  _id: string;
+  title: string;
+  category: string;
+  description: string;
+
+  price: number;
+  level: string;
+  duration: string;
+  seatsTotal?: number;
+
+  thumbnail?: WorkshopMedia;
+
+  host?: {
+    _id?: string;
+    username?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
+
+  location: {
+    address: string;
+
+    coordinates: {
+      type: "Point";
+      coordinates: [number, number];
+    };
+  };
+
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type GetWorkshopsParams = {
+  search?: string;
+  category?: string;
+  maxPrice?: number;
+  level?: string;
+  address?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type GetWorkshopsResponse = {
+  workshops: WorkshopListItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+};
+
 export const workshopService = {
-  getWorkshops: async (query: WorkshopQuery) => {
-    const { data } = await api.get("/workshops", {
-      params: query,
+  getWorkshops: async (
+    params: GetWorkshopsParams,
+  ): Promise<GetWorkshopsResponse> => {
+    const response = await api.get("/workshops", {
+      params,
     });
 
-    return data;
+    return response.data;
   },
+  // getWorkshops: async (query: WorkshopQuery) => {
+  //   const { data } = await api.get("/workshops", {
+  //     params: query,
+  //   });
+
+  //   return data;
+  // },
   getWorkshop: async (id: string) => {
     const { data } = await api.get(`/workshops/${id}`);
 

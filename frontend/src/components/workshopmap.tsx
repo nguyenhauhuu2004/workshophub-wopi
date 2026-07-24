@@ -32,11 +32,7 @@ type WorkshopMapProps = {
   onWorkshopClick?: (workshop: WorkshopLocation) => void;
 };
 
-function RecenterButton({
-  position,
-}: {
-  position: LatLngExpression;
-}) {
+function RecenterButton({ position }: { position: LatLngExpression }) {
   const map = useMap();
 
   const handleRecenter = () => {
@@ -70,19 +66,18 @@ function FlyToWorkshop({
 }) {
   const map = useMap();
 
-  const handleClick = () => {
+  // Bấm vào Marker: Chỉ bay bản đồ đến vị trí
+  const handleMarkerClick = () => {
     map.flyTo([workshop.latitude, workshop.longitude], 16, {
       duration: 0.8,
     });
-
-    onClick?.(workshop);
   };
 
   return (
     <MapMarker
       position={[workshop.latitude, workshop.longitude]}
       eventHandlers={{
-        click: handleClick,
+        click: handleMarkerClick,
       }}
       icon={
         <div className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-neutral-900 text-white shadow-md">
@@ -94,21 +89,26 @@ function FlyToWorkshop({
     >
       <MapPopup>
         <div className="w-56">
+          {/* Bấm vào ẢNH mới gọi hàm điều hướng onClick */}
           {workshop.image && (
-            <img
-              src={workshop.image}
-              alt={workshop.title}
-              className="aspect-video w-full rounded-lg object-cover"
-            />
+            <button
+              type="button"
+              onClick={() => onClick?.(workshop)}
+              className="group block w-full overflow-hidden rounded-lg cursor-pointer text-left focus:outline-none"
+            >
+              <img
+                src={workshop.image}
+                alt={workshop.title}
+                className="aspect-video w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </button>
           )}
 
           <h3 className="mt-2 font-semibold text-neutral-950">
             {workshop.title}
           </h3>
 
-          <p className="mt-1 text-xs text-neutral-500">
-            {workshop.address}
-          </p>
+          <p className="mt-1 text-xs text-neutral-500">{workshop.address}</p>
 
           {workshop.price !== undefined && (
             <p className="mt-2 text-sm font-medium">
@@ -168,12 +168,19 @@ export default function WorkshopMap({
         >
           <MapPopup>
             <div className="w-60">
+              {/* Bấm vào ẢNH của workshop hiện tại */}
               {currentWorkshop.image && (
-                <img
-                  src={currentWorkshop.image}
-                  alt={currentWorkshop.title}
-                  className="aspect-video w-full rounded-lg object-cover"
-                />
+                <button
+                  type="button"
+                  onClick={() => onWorkshopClick?.(currentWorkshop)}
+                  className="group block w-full overflow-hidden rounded-lg cursor-pointer text-left focus:outline-none"
+                >
+                  <img
+                    src={currentWorkshop.image}
+                    alt={currentWorkshop.title}
+                    className="aspect-video w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </button>
               )}
 
               <div className="mt-2 inline-flex rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-600">

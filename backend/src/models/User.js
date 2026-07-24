@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxlength: 500, // tuỳ
     },
+    status: {
+      type: String,
+      enum: ["active", "blocked"],
+      default: "active",
+    },
+    role: {
+      type: String,
+      enum: ["user", "host", "admin"],
+      default: "user",
+    },
     phone: {
       type: String,
       sparse: true, // cho phép null, nhưng không được trùng
@@ -40,7 +50,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const User = mongoose.model("User", userSchema);

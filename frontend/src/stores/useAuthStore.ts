@@ -21,13 +21,25 @@ export const useAuthStore = create<AuthState>()(
         localStorage.clear();
       },
 
-      signUp: async (username, password, phone) => {
+      signUp: async (
+        username: string,
+        password: string,
+        displayName: string,
+        email: string,
+        phone: string,
+      ) => {
         try {
           set({ loading: true });
 
           localStorage.clear();
           //  gọi api
-          await authService.signUp(username, password, phone);
+          await authService.signUp(
+            username,
+            password,
+            phone,
+            displayName,
+            email,
+          );
 
           toast.success(
             "Đăng ký thành công! Bạn sẽ được chuyển sang trang đăng nhập.",

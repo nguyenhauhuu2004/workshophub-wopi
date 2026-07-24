@@ -5,11 +5,13 @@ export const authService = {
     username: string,
     password: string,
     phone: string,
+    displayName: string,
+    email: string,
   ) => {
     const res = await api.post(
       "/auth/signup",
-      { username, password, phone },
-      { withCredentials: true }
+      { username, password, phone, displayName, email },
+      { withCredentials: true },
     );
 
     return res.data;
@@ -19,7 +21,7 @@ export const authService = {
     const res = await api.post(
       "auth/signin",
       { username, password },
-      { withCredentials: true }
+      { withCredentials: true },
     );
     return res.data; // access token
   },

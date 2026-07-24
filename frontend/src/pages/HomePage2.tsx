@@ -1,0 +1,745 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  CalendarDays,
+  ChevronRight,
+  Clock3,
+  Gift,
+  Grid2X2,
+  Heart,
+  Loader2,
+  MapPin,
+  Search,
+  Sparkles,
+  Store,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import Header, { type NavigationSection } from "@/components/layout/header";
+import Footer from "@/components/layout/footer";
+import WorkshopCard from "@/components/WorkshopCard";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Autoplay from "embla-carousel-autoplay"; // 1. Import Autoplay
+
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+
+import { workshopService } from "@/services/workshopService";
+import { CATEGORIES } from "@/data";
+
+type WorkshopMedia = {
+  url: string;
+  publicId: string;
+  resourceType: "image" | "video";
+};
+
+type WorkshopSchedule = {
+  _id?: string;
+  startsAt?: string;
+  endsAt?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  capacity?: number;
+  bookedCount?: number;
+};
+
+export type WorkshopListItem = {
+  _id: string;
+  title: string;
+  category: string;
+  description: string;
+
+  price: number;
+  duration: string;
+  level: string;
+  seatsTotal?: number;
+
+  thumbnail?: WorkshopMedia;
+  gallery?: WorkshopMedia[];
+  schedules?: WorkshopSchedule[];
+
+  host?: {
+    _id?: string;
+    username?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
+
+  location: {
+    address: string;
+
+    coordinates: {
+      type: "Point";
+      coordinates: [number, number];
+    };
+  };
+
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type GetWorkshopsResponse = {
+  workshops: WorkshopListItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+};
+
+const navigationData: NavigationSection[] = [
+  {
+    title: "Trang chủ",
+    href: "/",
+  },
+  {
+    title: "Workshop",
+    href: "/workshops",
+  },
+  {
+    title: "Studio & Nghệ nhân",
+    href: "/studios",
+  },
+  {
+    title: "Tạo workshop",
+    href: "/workshops/create",
+  },
+];
+
+const searchTags = [
+  "Làm gốm",
+  "Vẽ tranh",
+  "Đan móc",
+  "Nến thơm",
+  "Làm da",
+  "Thêu thùa",
+];
+
+const categoryIcons = ["🏺", "🎨", "🧶", "🕯️", "👜", "🖌️", "🪵", "🧵"];
+
+const getScheduleDate = (workshop: WorkshopListItem) => {
+  const schedule = workshop.schedules?.[0];
+
+  return schedule?.startsAt ?? schedule?.date ?? workshop.createdAt;
+};
+
+const formatScheduleDate = (dateValue?: string) => {
+  if (!dateValue) {
+    return {
+      day: "--",
+      month: "THÁNG --",
+      fullDate: "Chưa cập nhật",
+    };
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      day: "--",
+      month: "THÁNG --",
+      fullDate: "Chưa cập nhật",
+    };
+  }
+
+  return {
+    day: date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+    }),
+
+    month: `THÁNG ${date.getMonth() + 1}`,
+
+    fullDate: date.toLocaleDateString("vi-VN", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+    }),
+  };
+};
+
+const formatScheduleTime = (workshop: WorkshopListItem) => {
+  const schedule = workshop.schedules?.[0];
+
+  if (schedule?.startsAt) {
+    const startDate = new Date(schedule.startsAt);
+    const endDate = schedule.endsAt ? new Date(schedule.endsAt) : null;
+
+    if (!Number.isNaN(startDate.getTime())) {
+      const start = startDate.toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      if (endDate && !Number.isNaN(endDate.getTime())) {
+        const end = endDate.toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        return `${start} - ${end}`;
+      }
+
+      return start;
+    }
+  }
+
+  if (schedule?.startTime) {
+    return schedule.endTime
+      ? `${schedule.startTime} - ${schedule.endTime}`
+      : schedule.startTime;
+  }
+
+  return workshop.duration || "Đang cập nhật";
+};
+
+const HomePage = () => {
+  const navigate = useNavigate();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchAddress, setSearchAddress] = useState("");
+
+  const [workshops, setWorkshops] = useState<WorkshopListItem[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHomeWorkshops = async () => {
+      try {
+        setLoading(true);
+
+        const data = (await workshopService.getWorkshops({
+          page: 1,
+          limit: 12,
+        })) as GetWorkshopsResponse;
+
+        if (!mounted) {
+          return;
+        }
+
+        setWorkshops(data.workshops ?? []);
+      } catch (error) {
+        console.error("Không thể tải workshop trang chủ:", error);
+
+        if (mounted) {
+          setWorkshops([]);
+          toast.error("Không thể tải dữ liệu trang chủ");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadHomeWorkshops();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const featuredWorkshops = useMemo(() => workshops, [workshops]);
+
+  const latestWorkshops = useMemo(() => workshops.slice(4, 9), [workshops]);
+
+  const upcomingWorkshops = useMemo(() => {
+    return [...workshops]
+      .filter((workshop) => getScheduleDate(workshop))
+      .sort((first, second) => {
+        const firstDate = new Date(getScheduleDate(first) ?? 0).getTime();
+
+        const secondDate = new Date(getScheduleDate(second) ?? 0).getTime();
+
+        return firstDate - secondDate;
+      })
+      .slice(0, 4);
+  }, [workshops]);
+
+  const heroWorkshop = featuredWorkshops[0];
+
+  const heroImage = heroWorkshop?.thumbnail?.url ?? "/placeholderWorkshop.jpg";
+
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const params = new URLSearchParams();
+
+    if (searchQuery.trim()) {
+      params.set("search", searchQuery.trim());
+    }
+
+    if (searchAddress.trim()) {
+      params.set("address", searchAddress.trim());
+    }
+
+    const query = params.toString();
+
+    navigate(query ? `/workshops?${query}` : "/workshops");
+  };
+
+  const handleCategoryClick = (category: string) => {
+    navigate(`/workshops?category=${encodeURIComponent(category)}`);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#fafaf7] text-[#173f2d]">
+      <Header navigationData={navigationData} />
+
+      <main>
+        <section className="border-b bg-[#fffefa] px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-[1440px] gap-6 lg:grid-cols-[1.1fr_0.85fr_0.7fr]">
+            <div className="flex flex-col justify-center py-5">
+              <span className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[#edf4e9] px-4 py-2 text-sm font-semibold text-[#315c43]">
+                <Sparkles className="size-4" />
+                Trải nghiệm sáng tạo dành cho bạn
+              </span>
+
+              <h1 className="max-w-2xl text-4xl font-black leading-[1.15] tracking-tight sm:text-5xl lg:text-[56px]">
+                Kết nối bạn với những trải nghiệm thủ công đáng nhớ
+              </h1>
+
+              <p className="mt-5 max-w-xl text-base leading-7 text-[#607066]">
+                Khám phá workshop, gặp gỡ nghệ nhân và tự tay tạo nên những sản
+                phẩm mang dấu ấn riêng.
+              </p>
+
+              <form
+                onSubmit={handleSearch}
+                className="mt-8 flex flex-col gap-2 rounded-2xl border border-[#e5e9e2] bg-white p-2 shadow-[0_18px_50px_rgba(33,69,48,0.08)] sm:flex-row"
+              >
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#748077]" />
+
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Bạn muốn làm gì?"
+                    className="h-12 border-0 bg-transparent pl-12 shadow-none focus-visible:ring-0"
+                  />
+                </div>
+
+                <div className="relative min-w-0 flex-1 border-t border-[#edf0eb] sm:border-l sm:border-t-0">
+                  <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#748077]" />
+
+                  <Input
+                    value={searchAddress}
+                    onChange={(event) => setSearchAddress(event.target.value)}
+                    placeholder="Địa điểm"
+                    className="h-12 border-0 bg-transparent pl-12 shadow-none focus-visible:ring-0"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="h-12 rounded-xl bg-[#214c36] px-7 text-white hover:bg-[#173c2a]"
+                >
+                  Tìm kiếm
+                </Button>
+              </form>
+
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-xs font-semibold text-[#617066]">
+                  Xu hướng tìm kiếm:
+                </span>
+
+                {searchTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => handleCategoryClick(tag)}
+                    className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#4f6156] shadow-sm transition hover:bg-[#edf4e9] hover:text-[#214c36]"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-[#e9ece5] lg:min-h-[430px]">
+              <img
+                src={heroImage}
+                alt={heroWorkshop?.title ?? "Workshop thủ công"}
+                className="h-full w-full object-cover"
+              />
+
+              <div className="absolute inset-x-5 bottom-5 rounded-2xl bg-white/90 p-4 shadow-lg backdrop-blur-md">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#7a8c80]">
+                  Gợi ý dành cho bạn
+                </p>
+
+                <div className="mt-1 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="line-clamp-2 text-lg font-bold text-[#173f2d]">
+                      {heroWorkshop?.title ??
+                        "Thư giãn cuối tuần với một điều bạn yêu"}
+                    </h2>
+
+                    <p className="mt-1 line-clamp-1 text-sm text-[#66756c]">
+                      {heroWorkshop?.location?.address ??
+                        "Khám phá nhiều workshop sáng tạo"}
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() =>
+                      heroWorkshop
+                        ? navigate(`/workshops/${heroWorkshop._id}`)
+                        : navigate("/workshops")
+                    }
+                    className="shrink-0 rounded-full bg-[#214c36]"
+                  >
+                    Khám phá
+                    <ArrowRight className="ml-1 size-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="relative overflow-hidden rounded-[24px] bg-[#f0f2e7] p-6">
+                <div className="relative z-10 max-w-[65%]">
+                  <Store className="mb-4 size-7 text-[#315c43]" />
+
+                  <h2 className="text-xl font-bold">
+                    Dành cho Studio và đơn vị tổ chức
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-6 text-[#607066]">
+                    Đăng workshop dễ dàng và tiếp cận cộng đồng yêu thích trải
+                    nghiệm sáng tạo.
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate("/workshops/create")}
+                    className="mt-5 rounded-full border-[#9aaa9e] bg-white/70"
+                  >
+                    Tạo workshop
+                    <ArrowRight className="ml-1 size-4" />
+                  </Button>
+                </div>
+
+                <div className="absolute -bottom-9 -right-8 size-44 rounded-full bg-[#dce5d2]" />
+                <Store className="absolute bottom-8 right-8 size-20 text-[#78917c]/40" />
+              </div>
+
+              <div className="relative overflow-hidden rounded-[24px] bg-[#fff1ec] p-6">
+                <div className="relative z-10 max-w-[68%]">
+                  <Gift className="mb-4 size-7 text-[#ef6f61]" />
+
+                  <h2 className="text-xl font-bold text-[#5b342d]">
+                    Ưu đãi dành cho bạn
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-6 text-[#8a5c53]">
+                    Khám phá các chương trình ưu đãi dành cho thành viên WOPI.
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate("/workshops")}
+                    className="mt-5 rounded-full border-[#ef9e91] bg-white/60 text-[#d85f51]"
+                  >
+                    Xem ưu đãi
+                    <ArrowRight className="ml-1 size-4" />
+                  </Button>
+                </div>
+
+                <Gift className="absolute bottom-6 right-6 size-24 text-[#ef9e91]/35" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b bg-white px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-[1440px] gap-3 overflow-x-auto pb-1">
+            {CATEGORIES.slice(0, 8).map((category, index) => (
+              <button
+                key={category.name}
+                type="button"
+                onClick={() => handleCategoryClick(category.name)}
+                className="flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-[#3f5147] transition hover:bg-[#f2f5ef]"
+              >
+                <span className="flex size-10 items-center justify-center rounded-xl bg-[#f4f0e8] text-xl">
+                  {categoryIcons[index % categoryIcons.length]}
+                </span>
+
+                {category.name}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => navigate("/workshops")}
+              className="ml-auto flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-[#3f5147] transition hover:bg-[#f2f5ef]"
+            >
+              <span className="flex size-10 items-center justify-center rounded-xl bg-[#f2f5ef]">
+                <Grid2X2 className="size-5" />
+              </span>
+              Xem tất cả
+            </button>
+          </div>
+        </section>
+
+        <section className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-[1440px] gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Workshop nổi bật</h2>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/workshops")}
+                  className="flex items-center gap-1 text-sm font-semibold text-[#456151] hover:text-[#214c36]"
+                >
+                  Xem tất cả
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+
+              {loading ? (
+                <LoadingBlock />
+              ) : featuredWorkshops.length > 0 ? (
+                <Carousel
+                  // 2. Thêm plugin Autoplay vào đây
+                  plugins={[
+                    Autoplay({
+                      delay: 1500, // Thời gian trượt (3.5 giây/lần)
+                      stopOnInteraction: false, // Bấm/vuốt xong vẫn tiếp tục tự động trượt
+                      stopOnMouseEnter: true, // Rê chuột vào thì tạm dừng để dễ xem
+                    }),
+                  ]}
+                  opts={{
+                    align: "start",
+                    loop: true, // Bật loop để trượt vô tận
+                  }}
+                  className="w-full"
+                >
+                  <CarouselContent className="-ml-4">
+                    {featuredWorkshops.map((workshop) => (
+                      <CarouselItem
+                        key={workshop._id}
+                        className="basis-full pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
+                      >
+                        <WorkshopCard workshop={workshop} />
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+
+                  <CarouselPrevious className="hidden lg:flex" />
+                  <CarouselNext className="hidden lg:flex" />
+                </Carousel>
+              ) : (
+                <EmptyState message="Chưa có workshop nổi bật." />
+              )}
+
+              <div className="mb-5 mt-10 flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Workshop mới đăng</h2>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/workshops")}
+                  className="flex items-center gap-1 text-sm font-semibold text-[#456151] hover:text-[#214c36]"
+                >
+                  Xem tất cả
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+
+              {loading ? (
+                <LoadingBlock />
+              ) : latestWorkshops.length > 0 ? (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {latestWorkshops.map((workshop) => (
+                    <WorkshopCard key={workshop._id} workshop={workshop} />
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => navigate("/workshops")}
+                    className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfd8d1] bg-white text-[#52675a] transition hover:border-[#214c36] hover:bg-[#f5f8f3]"
+                  >
+                    <span className="flex size-12 items-center justify-center rounded-full bg-[#edf3e9]">
+                      <ChevronRight className="size-6" />
+                    </span>
+
+                    <span className="mt-3 font-semibold">
+                      Xem thêm workshop
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                <EmptyState message="Chưa có workshop nào được đăng." />
+              )}
+            </div>
+
+            <aside className="h-fit rounded-2xl border border-[#e6eae5] bg-white p-5 shadow-sm xl:sticky xl:top-24">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold">Workshop gần đây</h2>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/workshops")}
+                  className="text-xs font-semibold text-[#52675a]"
+                >
+                  Xem tất cả
+                </button>
+              </div>
+
+              {loading ? (
+                <LoadingBlock className="min-h-48" />
+              ) : upcomingWorkshops.length > 0 ? (
+                <div className="divide-y divide-[#edf0ec]">
+                  {upcomingWorkshops.map((workshop) => {
+                    const scheduleDate = formatScheduleDate(
+                      getScheduleDate(workshop),
+                    );
+
+                    return (
+                      <button
+                        key={workshop._id}
+                        type="button"
+                        onClick={() => navigate(`/workshops/${workshop._id}`)}
+                        className="grid w-full grid-cols-[58px_1fr_56px] gap-3 py-4 text-left"
+                      >
+                        <div className="flex flex-col items-center justify-center rounded-xl bg-[#f3f5eb] px-2 py-2">
+                          <span className="text-xl font-black">
+                            {scheduleDate.day}
+                          </span>
+
+                          <span className="text-[9px] font-bold text-[#718074]">
+                            {scheduleDate.month}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <h3 className="line-clamp-1 text-sm font-bold text-[#263c30]">
+                            {workshop.title}
+                          </h3>
+
+                          <p className="mt-1 flex items-center gap-1 truncate text-xs text-[#718074]">
+                            <MapPin className="size-3" />
+                            {workshop.location?.address}
+                          </p>
+
+                          <p className="mt-1 flex items-center gap-1 text-xs text-[#718074]">
+                            <Clock3 className="size-3" />
+                            {formatScheduleTime(workshop)}
+                          </p>
+                        </div>
+
+                        <img
+                          src={
+                            workshop.thumbnail?.url ??
+                            "/placeholderWorkshop.jpg"
+                          }
+                          alt={workshop.title}
+                          className="size-14 rounded-xl object-cover"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Chưa có lịch workshop.
+                </p>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/workshops")}
+                className="mt-4 w-full rounded-xl"
+              >
+                Xem thêm workshop
+              </Button>
+            </aside>
+          </div>
+        </section>
+
+        <section className="px-4 pb-12 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-[1440px] gap-4 rounded-[28px] bg-[#173f2d] p-7 text-white md:grid-cols-3">
+            <FeatureItem
+              icon={<Users className="size-6" />}
+              title="Cộng đồng sáng tạo"
+              description="Kết nối với người có chung sở thích."
+            />
+
+            <FeatureItem
+              icon={<CalendarDays className="size-6" />}
+              title="Lịch học linh hoạt"
+              description="Dễ dàng lựa chọn thời gian phù hợp."
+            />
+
+            <FeatureItem
+              icon={<Heart className="size-6" />}
+              title="Trải nghiệm đáng nhớ"
+              description="Tự tay tạo nên sản phẩm của riêng bạn."
+            />
+          </div>
+        </section>
+      </main>
+
+      <Footer />
+    </div>
+  );
+};
+
+type LoadingBlockProps = {
+  className?: string;
+};
+
+const LoadingBlock = ({ className = "min-h-56" }: LoadingBlockProps) => {
+  return (
+    <div className={`flex items-center justify-center ${className}`}>
+      <Loader2 className="size-8 animate-spin text-[#214c36]" />
+    </div>
+  );
+};
+
+const EmptyState = ({ message }: { message: string }) => {
+  return (
+    <div className="rounded-2xl border border-dashed border-[#d8ded9] bg-white p-10 text-center text-sm text-[#718074]">
+      {message}
+    </div>
+  );
+};
+
+type FeatureItemProps = {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+};
+
+const FeatureItem = ({ icon, title, description }: FeatureItemProps) => {
+  return (
+    <div className="flex items-center gap-4 rounded-2xl bg-white/5 p-4">
+      <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+        {icon}
+      </div>
+
+      <div>
+        <h3 className="font-bold">{title}</h3>
+
+        <p className="mt-1 text-sm text-white/70">{description}</p>
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;

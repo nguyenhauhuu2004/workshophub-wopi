@@ -15,7 +15,7 @@ const ProfileCard = ({ user }: ProfileCardProps) => {
         <div className="relative">
           <UserAvatar
             type="profile"
-            name={user.displayName}
+            name={user.displayName ?? ""}
             avatarUrl={user.avatarUrl ?? undefined}
             className="ring-4 ring-white shadow-lg"
           />

@@ -2,7 +2,11 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router";
 
-const ProtectedRoute = () => {
+interface ProtectedRouteProps {
+  allowedRoles?: string[]; // Ví dụ: ["host"], ["admin"], ["host", "admin"]
+}
+
+const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
   const { accessToken, user, loading, refresh, fetchMe } = useAuthStore();
   const [starting, setStarting] = useState(true);
 
@@ -32,12 +36,10 @@ const ProtectedRoute = () => {
   }
 
   if (!accessToken) {
-    return (
-      <Navigate
-        to="/signin"
-        replace
-      />
-    );
+    return <Navigate to="/signin" replace />;
+  }
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />; // Hoặc trang /unauthorized
   }
 
   return <Outlet></Outlet>;

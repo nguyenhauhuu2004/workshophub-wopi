@@ -4,40 +4,79 @@ import {
   createWorkshop,
   deleteMediaController,
   getGoongPlaceDetail,
+  getNearbyWorkshops,
   getWorkshopById,
+  getWorkshops,
   reverseGoongGeocode,
   searchGoongPlaces,
   updateWorkshop,
-  uploadWorkshopMediaController,
-  getNearbyWorkshops,
-  getWorkshops,
 } from "../controllers/workshopController.js";
 
-import { protectedRoute } from "../middlewares/authMiddleware.js";
+import { protectedRoute, isHost } from "../middlewares/authMiddleware.js";
 import { workshopUpload } from "../middlewares/workshopUploadMiddleware.js";
 
 const router = express.Router();
 
+/*
+ * Goong Map API
+ */
 router.get("/goong/autocomplete", searchGoongPlaces);
 router.get("/goong/place-detail", getGoongPlaceDetail);
 router.get("/goong/reverse-geocode", reverseGoongGeocode);
 
-router.post(
-  "/upload-media",
-  protectedRoute,
-  workshopUpload.array("files", 10),
-  uploadWorkshopMediaController,
-);
-
-router.delete("/media", protectedRoute, deleteMediaController);
+/*
+ * Workshop public routes
+ *
+ * Phải đặt /nearby trước /:id.
+ * Nếu đặt sau /:id thì Express có thể hiểu "nearby" là id.
+ */
+router.get("/nearby", getNearbyWorkshops);
 router.get("/", getWorkshops);
-
-router.post("/", protectedRoute, createWorkshop);
-
-router.patch("/:id", protectedRoute, updateWorkshop);
-
 router.get("/:id", getWorkshopById);
 
-export default router;
+/*
+ * Tạo workshop và upload toàn bộ media trong cùng một request.
+ *
+ * req.files sẽ có dạng:
+ * {
+ *   thumbnail: [file],
+ *   gallery: [file, file, ...],
+ *   video: [file]
+ * }
+ */
+router.post(
+  "/",
+  protectedRoute,
+  isHost,
+  workshopUpload.fields([
+    {
+      name: "thumbnail",
+      maxCount: 1,
+    },
+    {
+      name: "gallery",
+      maxCount: 10,
+    },
+    {
+      name: "video",
+      maxCount: 1,
+    },
+  ]),
+  createWorkshop,
+);
 
-router.get("/nearby", getNearbyWorkshops);
+/*
+ * Cập nhật workshop.
+ *
+ * Phiên bản hiện tại chỉ cập nhật dữ liệu JSON.
+ * Nếu sau này cần thay thumbnail/gallery/video khi update,
+ * route này cũng cần thêm workshopUpload.fields(...).
+ */
+router.patch("/:id", protectedRoute, updateWorkshop);
+
+/*
+ * Xóa media khỏi Cloudinary.
+ */
+router.delete("/media", protectedRoute, deleteMediaController);
+
+export default router;
