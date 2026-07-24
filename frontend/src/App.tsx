@@ -8,7 +8,7 @@ import HomePage from "./pages/HomePage2";
 import { ThemeProvider } from "@/components/theme-provider";
 import { WorkshopsPage } from "./pages/WorkshopsPage";
 import { WorkshopDetail } from "./pages/WorkshopDetail";
-import { CreateWorkshopPage } from "./pages/CreateWorkshopPage";
+import { CreateWorkshopPage } from "./pages/CreateWorkshopPage2.tsx";
 
 function App() {
   return (

@@ -151,10 +151,15 @@ export const workshopService = {
     return data.media;
   },
 
-  createWorkshop: async (payload: WorkshopPayload) => {
-    const { data } = await api.post("/workshops", payload);
+  // createWorkshop: async (payload: WorkshopPayload) => {
+  //   const { data } = await api.post("/workshops", payload);
 
-    return data;
+  //   return data;
+  // },
+  createWorkshop: async (formData: FormData) => {
+    const response = await api.post("/workshops", formData);
+
+    return response.data;
   },
 
   updateWorkshop: async (id: string, payload: WorkshopPayload) => {
