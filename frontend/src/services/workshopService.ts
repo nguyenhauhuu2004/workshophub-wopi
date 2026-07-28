@@ -92,6 +92,17 @@ export type GetWorkshopsResponse = {
   page: number;
   totalPages: number;
 };
+type NearbyWorkshopParams = {
+  longitude: number;
+  latitude: number;
+  distance?: number;
+  excludeId?: string;
+};
+
+type CreateReviewPayload = {
+  rating: number;
+  comment: string;
+};
 
 export const workshopService = {
   getWorkshops: async (
@@ -197,5 +208,20 @@ export const workshopService = {
     });
 
     return data.results?.[0];
+  },
+
+  getReviews: async (workshopId: string) => {
+    const { data } = await api.get(`/workshops/${workshopId}/reviews`);
+
+    return data;
+  },
+
+  createReview: async (workshopId: string, payload: CreateReviewPayload) => {
+    const { data } = await api.post(
+      `/workshops/${workshopId}/reviews`,
+      payload,
+    );
+
+    return data;
   },
 };

@@ -26,9 +26,9 @@ type BookingCardProps = {
   currency?: string;
   locale?: string;
   className?: string;
-  onBook?: (booking: BookingData) => void;
+  disabled?: boolean;
+  onBook?: (booking: BookingData) => void | Promise<void>;
 };
-
 export default function BookingCard({
   pricePerPerson,
   sessions,
@@ -37,6 +37,7 @@ export default function BookingCard({
   currency = "VND",
   locale = "vi-VN",
   className = "",
+  disabled = false,
   onBook,
 }: BookingCardProps) {
   const availableSessions = useMemo(
@@ -51,9 +52,7 @@ export default function BookingCard({
 
   const defaultSession = availableSessions[0] ?? sessions[0];
 
-  const [selectedDate, setSelectedDate] = useState(
-    defaultSession?.date ?? "",
-  );
+  const [selectedDate, setSelectedDate] = useState(defaultSession?.date ?? "");
 
   const [selectedSessionId, setSelectedSessionId] = useState<
     string | number | null
@@ -67,8 +66,7 @@ export default function BookingCard({
   );
 
   const selectedSession = useMemo(
-    () =>
-      sessions.find((session) => session.id === selectedSessionId) ?? null,
+    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId],
   );
 
@@ -113,8 +111,9 @@ export default function BookingCard({
       (session) => session.date === date && session.remaining > 0,
     );
 
-    const firstSession = firstAvailableSession
-      ?? sessions.find((session) => session.date === date);
+    const firstSession =
+      firstAvailableSession ??
+      sessions.find((session) => session.date === date);
 
     setSelectedSessionId(firstSession?.id ?? null);
     setQuantity(firstAvailableSession ? 1 : 0);
@@ -155,9 +154,10 @@ export default function BookingCard({
   };
 
   const canBook =
-    selectedSession !== null
-    && selectedSession.remaining > 0
-    && quantity > 0;
+    !disabled &&
+    selectedSession !== null &&
+    selectedSession.remaining > 0 &&
+    quantity > 0;
 
   return (
     <aside
@@ -180,9 +180,7 @@ export default function BookingCard({
       </div>
 
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-neutral-950">
-          Chọn ngày
-        </h3>
+        <h3 className="text-sm font-semibold text-neutral-950">Chọn ngày</h3>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
           {dates.map((date) => {
@@ -192,11 +190,11 @@ export default function BookingCard({
               <button
                 key={date}
                 type="button"
+                disabled={disabled}
                 onClick={() => handleSelectDate(date)}
                 className={[
                   "shrink-0 rounded-xl border px-4 py-3 text-sm font-medium",
-                  "focus-visible:outline-none focus-visible:ring-2",
-                  "focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
                   isSelected
                     ? "border-neutral-950 bg-neutral-950 text-white"
                     : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400",
@@ -223,7 +221,7 @@ export default function BookingCard({
               <button
                 key={session.id}
                 type="button"
-                disabled={isSoldOut}
+                disabled={disabled || isSoldOut}
                 onClick={() => handleSelectSession(session)}
                 className={[
                   "flex items-center justify-between rounded-xl border",
@@ -252,9 +250,7 @@ export default function BookingCard({
                         : "text-neutral-500",
                   ].join(" ")}
                 >
-                  {isSoldOut
-                    ? "Hết chỗ"
-                    : `Còn ${session.remaining} chỗ`}
+                  {isSoldOut ? "Hết chỗ" : `Còn ${session.remaining} chỗ`}
                 </span>
               </button>
             );
@@ -300,9 +296,9 @@ export default function BookingCard({
             type="button"
             onClick={increaseQuantity}
             disabled={
-              !canBook
-              || !selectedSession
-              || quantity >= selectedSession.remaining
+              !canBook ||
+              !selectedSession ||
+              quantity >= selectedSession.remaining
             }
             aria-label="Tăng số lượng"
             className="grid h-11 w-11 place-items-center text-xl disabled:cursor-not-allowed disabled:opacity-30"

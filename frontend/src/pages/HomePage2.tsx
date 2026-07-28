@@ -36,6 +36,15 @@ import {
 import { workshopService } from "@/services/workshopService";
 import { CATEGORIES } from "@/data";
 
+const normalizeText = (value: string) => {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .trim();
+};
+
 type WorkshopMedia = {
   url: string;
   publicId: string;
@@ -209,6 +218,21 @@ const HomePage = () => {
   const [workshops, setWorkshops] = useState<WorkshopListItem[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+
+  const searchSuggestions = useMemo(() => {
+    const keyword = searchQuery.trim().toLocaleLowerCase("vi-VN");
+
+    return [
+      ...new Set(
+        workshops
+          .map((workshop) => workshop.title?.trim())
+          .filter((title): title is string => Boolean(title)),
+      ),
+    ]
+      .filter((title) => normalizeText(title).includes(keyword))
+      .slice(0, 6);
+  }, [workshops, searchQuery]);
 
   useEffect(() => {
     let mounted = true;
@@ -320,12 +344,47 @@ const HomePage = () => {
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#748077]" />
 
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Bạn muốn làm gì?"
-                    className="h-12 border-0 bg-transparent pl-12 shadow-none focus-visible:ring-0"
-                  />
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 z-10 size-5 -translate-y-1/2 text-[#748077]" />
+
+                    <Input
+                      value={searchQuery}
+                      autoComplete="off"
+                      placeholder="Bạn muốn làm gì?"
+                      onFocus={() => setShowSearchSuggestions(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setShowSearchSuggestions(false);
+                        }, 150);
+                      }}
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value);
+                        setShowSearchSuggestions(true);
+                      }}
+                      className="h-12 border-0 bg-transparent pl-12 shadow-none focus-visible:ring-0"
+                    />
+
+                    {showSearchSuggestions &&
+                      searchQuery.trim() &&
+                      searchSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border bg-white p-1 shadow-xl">
+                          {searchSuggestions.map((title) => (
+                            <button
+                              key={title}
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                setSearchQuery(title);
+                                setShowSearchSuggestions(false);
+                              }}
+                              className="block w-full rounded-lg px-4 py-3 text-left text-sm font-medium hover:bg-[#f1f5ef]"
+                            >
+                              {title}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                  </div>
                 </div>
 
                 <div className="relative min-w-0 flex-1 border-t border-[#edf0eb] sm:border-l sm:border-t-0">

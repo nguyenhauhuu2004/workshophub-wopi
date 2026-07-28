@@ -17,7 +17,7 @@ type WorkshopCardProps = {
   duration: string;
   seatsTotal?: number;
 
-  rating?: number;
+  averageRating?: number;
   reviewCount?: number;
   sponsored?: boolean;
 
@@ -52,8 +52,11 @@ const formatPrice = (price: number) => {
 };
 
 const WorkshopCard = ({ workshop }: WorkshopCardComponentProps) => {
-  const rating = workshop.rating ?? 5;
-  const reviewCount = workshop.reviewCount ?? 0;
+  const averageRating = Math.min(5, Math.max(0, workshop.averageRating ?? 0));
+
+  const reviewCount = Math.max(0, workshop.reviewCount ?? 0);
+
+  const hasReviews = reviewCount > 0;
 
   return (
     <article className="group h-full overflow-hidden rounded-2xl border border-[#e8ebe6] bg-white shadow-[0_8px_24px_rgba(25,55,39,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(25,55,39,0.12)]">
@@ -142,13 +145,25 @@ const WorkshopCard = ({ workshop }: WorkshopCardComponentProps) => {
             </div>
 
             <div className="flex items-center gap-1 text-xs">
-              <Star className="size-4 fill-[#f4a51c] text-[#f4a51c]" />
+              <Star
+                className={
+                  hasReviews
+                    ? "size-4 fill-[#f4a51c] text-[#f4a51c]"
+                    : "size-4 text-[#c9cfcb]"
+                }
+              />
 
-              <span className="font-semibold text-[#38493f]">
-                {rating.toFixed(1)}
-              </span>
+              {hasReviews ? (
+                <>
+                  <span className="font-semibold text-[#38493f]">
+                    {averageRating.toFixed(1)}
+                  </span>
 
-              <span className="text-[#8a958e]">({reviewCount})</span>
+                  <span className="text-[#8a958e]">({reviewCount})</span>
+                </>
+              ) : (
+                <span className="text-[#8a958e]">Chưa có đánh giá</span>
+              )}
             </div>
           </div>
         </div>
