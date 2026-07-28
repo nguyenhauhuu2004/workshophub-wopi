@@ -92,12 +92,6 @@ export type GetWorkshopsResponse = {
   page: number;
   totalPages: number;
 };
-type NearbyWorkshopParams = {
-  longitude: number;
-  latitude: number;
-  distance?: number;
-  excludeId?: string;
-};
 
 type CreateReviewPayload = {
   rating: number;

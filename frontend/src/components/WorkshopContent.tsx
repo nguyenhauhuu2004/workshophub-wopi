@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle2, Clock, Users } from "lucide-react";
+import { CheckCircle2, Clock, Users } from "lucide-react";
 
 type WorkshopContentProps = {
   highlights: string[];
