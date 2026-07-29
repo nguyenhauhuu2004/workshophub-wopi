@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import axios from "axios";
 
 import ThumbnailSlider, {
   type ProductMedia,
@@ -187,11 +188,12 @@ export function WorkshopDetail() {
   }, [workshop]);
 
   const sessions = useMemo<BookingSession[]>(() => {
-    if (!workshop) return [];
+    if (!workshop?.schedules) {
+      return [];
+    }
 
     return workshop.schedules.map((session, index) => ({
-      id: session._id ?? `${session.date}-${session.time}-${index}`,
-
+      id: session._id ?? `schedule-${index}`,
       date: session.date,
       time: session.time,
       remaining: session.spotsLeft,
@@ -250,23 +252,27 @@ export function WorkshopDetail() {
     try {
       setBooking(true);
 
-      await workshopService.createBooking({
+      const result = await workshopService.createBooking({
         workshopId: workshop._id,
+
         sessionId: String(bookingData.session.id),
+
         quantity: bookingData.quantity,
       });
 
-      toast.success("Đặt chỗ thành công");
+      toast.success(result.message ?? "Đặt chỗ thành công");
 
-      setWorkshop((currentWorkshop) => {
-        if (!currentWorkshop) return currentWorkshop;
+      setWorkshop((current) => {
+        if (!current) return current;
 
         return {
-          ...currentWorkshop,
-          schedules: currentWorkshop.schedules.map((session) =>
-            String(session._id) === String(bookingData.session.id)
+          ...current,
+
+          schedules: current.schedules.map((session) =>
+            session._id === String(bookingData.session.id)
               ? {
                   ...session,
+
                   spotsLeft: Math.max(
                     0,
                     session.spotsLeft - bookingData.quantity,
@@ -278,6 +284,12 @@ export function WorkshopDetail() {
       });
     } catch (error) {
       console.error("Booking error:", error);
+
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message ?? "Không thể đặt chỗ");
+
+        return;
+      }
 
       toast.error("Không thể đặt chỗ");
     } finally {

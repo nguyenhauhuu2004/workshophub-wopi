@@ -18,6 +18,25 @@ const mediaSchema = new mongoose.Schema(
   },
   { _id: false },
 );
+const workshopScheduleSchema = new mongoose.Schema({
+  date: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+
+  time: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+
+  spotsLeft: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+});
 
 const locationSchema = new mongoose.Schema(
   {
@@ -104,13 +123,10 @@ const workshopSchema = new mongoose.Schema(
       min: 1,
     },
 
-    schedules: [
-      {
-        date: Date,
-        time: String,
-        spotsLeft: Number,
-      },
-    ],
+    schedules: {
+      type: [workshopScheduleSchema],
+      default: [],
+    },
 
     location: {
       type: locationSchema,
@@ -127,6 +143,18 @@ const workshopSchema = new mongoose.Schema(
       type: String,
       enum: ["draft", "published"],
       default: "published",
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+
+    reviewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

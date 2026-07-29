@@ -18,7 +18,6 @@ import { useNavigate } from "react-router";
 
 import { cn } from "@/lib/utils";
 
-import Logo from "@/assets/svg/logo";
 import { MenuIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -82,8 +81,7 @@ const Header = ({ navigationData, className }: HeaderProps) => {
             href="#"
             className="flex items-center gap-2 text-lg font-semibold leading-none"
           >
-            WOPY
-            <Logo className="gap-3" />
+            <img className="object-fit w-48" src="logo.png" alt="" />
           </a>
 
           {/* Navigation */}

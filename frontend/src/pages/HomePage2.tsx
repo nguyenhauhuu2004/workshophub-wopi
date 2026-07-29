@@ -11,7 +11,6 @@ import {
   Loader2,
   MapPin,
   Search,
-  Sparkles,
   Store,
   Users,
 } from "lucide-react";
@@ -115,7 +114,7 @@ const navigationData: NavigationSection[] = [
   },
   {
     title: "Studio & Nghệ nhân",
-    href: "/studios",
+    href: "/host",
   },
   {
     title: "Tạo workshop",
@@ -316,36 +315,31 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafaf7] text-[#173f2d]">
+    <div className="min-h-screen bg-background text-foreground">
       <Header navigationData={navigationData} />
 
       <main>
-        <section className="border-b bg-[#fffefa] px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+        <section className="border-b border-border bg-background px-4 pb-8 pt-8 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-[1440px] gap-6 lg:grid-cols-[1.1fr_0.85fr_0.7fr]">
-            <div className="flex flex-col justify-center py-5">
-              <span className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[#edf4e9] px-4 py-2 text-sm font-semibold text-[#315c43]">
-                <Sparkles className="size-4" />
-                Trải nghiệm sáng tạo dành cho bạn
-              </span>
-
+            <div className="flex flex-col justify-center py-5 text-accent">
               <h1 className="max-w-2xl text-4xl font-black leading-[1.15] tracking-tight sm:text-5xl lg:text-[56px]">
                 Kết nối bạn với những trải nghiệm thủ công đáng nhớ
               </h1>
 
-              <p className="mt-5 max-w-xl text-base leading-7 text-[#607066]">
+              <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
                 Khám phá workshop, gặp gỡ nghệ nhân và tự tay tạo nên những sản
                 phẩm mang dấu ấn riêng.
               </p>
 
               <form
                 onSubmit={handleSearch}
-                className="mt-8 flex flex-col gap-2 rounded-2xl border border-[#e5e9e2] bg-white p-2 shadow-[0_18px_50px_rgba(33,69,48,0.08)] sm:flex-row"
+                className="mt-8 flex flex-col gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft sm:flex-row"
               >
                 <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#748077]" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
 
                   <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 z-10 size-5 -translate-y-1/2 text-[#748077]" />
+                    <Search className="pointer-events-none absolute left-4 top-1/2 z-10 size-5 -translate-y-1/2 text-muted-foreground" />
 
                     <Input
                       value={searchQuery}
@@ -367,7 +361,7 @@ const HomePage = () => {
                     {showSearchSuggestions &&
                       searchQuery.trim() &&
                       searchSuggestions.length > 0 && (
-                        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border bg-white p-1 shadow-xl">
+                        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl">
                           {searchSuggestions.map((title) => (
                             <button
                               key={title}
@@ -377,7 +371,7 @@ const HomePage = () => {
                                 setSearchQuery(title);
                                 setShowSearchSuggestions(false);
                               }}
-                              className="block w-full rounded-lg px-4 py-3 text-left text-sm font-medium hover:bg-[#f1f5ef]"
+                              className="block w-full rounded-lg px-4 py-3 text-left text-sm font-medium hover:bg-muted"
                             >
                               {title}
                             </button>
@@ -387,8 +381,8 @@ const HomePage = () => {
                   </div>
                 </div>
 
-                <div className="relative min-w-0 flex-1 border-t border-[#edf0eb] sm:border-l sm:border-t-0">
-                  <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#748077]" />
+                <div className="relative min-w-0 flex-1 border-t border-border sm:border-l sm:border-t-0">
+                  <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
 
                   <Input
                     value={searchAddress}
@@ -400,14 +394,14 @@ const HomePage = () => {
 
                 <Button
                   type="submit"
-                  className="h-12 rounded-xl bg-[#214c36] px-7 text-white hover:bg-[#173c2a]"
+                  className="h-12 rounded-xl bg-primary px-7 text-primary-foreground hover:bg-primary/90"
                 >
                   Tìm kiếm
                 </Button>
               </form>
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-xs font-semibold text-[#617066]">
+                <span className="mr-1 text-xs font-semibold text-muted-foreground">
                   Xu hướng tìm kiếm:
                 </span>
 
@@ -416,7 +410,7 @@ const HomePage = () => {
                     key={tag}
                     type="button"
                     onClick={() => handleCategoryClick(tag)}
-                    className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#4f6156] shadow-sm transition hover:bg-[#edf4e9] hover:text-[#214c36]"
+                    className="rounded-full bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition hover:bg-accent/10 hover:text-accent"
                   >
                     {tag}
                   </button>
@@ -424,26 +418,26 @@ const HomePage = () => {
               </div>
             </div>
 
-            <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-[#e9ece5] lg:min-h-[430px]">
+            <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-muted lg:min-h-[430px]">
               <img
                 src={heroImage}
                 alt={heroWorkshop?.title ?? "Workshop thủ công"}
                 className="h-full w-full object-cover"
               />
 
-              <div className="absolute inset-x-5 bottom-5 rounded-2xl bg-white/90 p-4 shadow-lg backdrop-blur-md">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#7a8c80]">
+              <div className="absolute inset-x-5 bottom-5 rounded-2xl bg-card/90 p-4 shadow-lg backdrop-blur-md">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Gợi ý dành cho bạn
                 </p>
 
                 <div className="mt-1 flex items-end justify-between gap-4">
                   <div>
-                    <h2 className="line-clamp-2 text-lg font-bold text-[#173f2d]">
+                    <h2 className="line-clamp-2 text-lg font-bold text-foreground">
                       {heroWorkshop?.title ??
                         "Thư giãn cuối tuần với một điều bạn yêu"}
                     </h2>
 
-                    <p className="mt-1 line-clamp-1 text-sm text-[#66756c]">
+                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
                       {heroWorkshop?.location?.address ??
                         "Khám phá nhiều workshop sáng tạo"}
                     </p>
@@ -457,7 +451,7 @@ const HomePage = () => {
                         ? navigate(`/workshops/${heroWorkshop._id}`)
                         : navigate("/workshops")
                     }
-                    className="shrink-0 rounded-full bg-[#214c36]"
+                    className="shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     Khám phá
                     <ArrowRight className="ml-1 size-4" />
@@ -467,15 +461,15 @@ const HomePage = () => {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-              <div className="relative overflow-hidden rounded-[24px] bg-[#f0f2e7] p-6">
+              <div className="relative overflow-hidden rounded-[24px] bg-secondary p-6">
                 <div className="relative z-10 max-w-[65%]">
-                  <Store className="mb-4 size-7 text-[#315c43]" />
+                  <Store className="mb-4 size-7 text-primary" />
 
                   <h2 className="text-xl font-bold">
                     Dành cho Studio và đơn vị tổ chức
                   </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-[#607066]">
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
                     Đăng workshop dễ dàng và tiếp cận cộng đồng yêu thích trải
                     nghiệm sáng tạo.
                   </p>
@@ -484,26 +478,26 @@ const HomePage = () => {
                     type="button"
                     variant="outline"
                     onClick={() => navigate("/workshops/create")}
-                    className="mt-5 rounded-full border-[#9aaa9e] bg-white/70"
+                    className="mt-5 rounded-full border-border bg-card/70 text-foreground hover:bg-muted"
                   >
                     Tạo workshop
                     <ArrowRight className="ml-1 size-4" />
                   </Button>
                 </div>
 
-                <div className="absolute -bottom-9 -right-8 size-44 rounded-full bg-[#dce5d2]" />
-                <Store className="absolute bottom-8 right-8 size-20 text-[#78917c]/40" />
+                <div className="absolute -bottom-9 -right-8 size-44 rounded-full bg-primary/10" />
+                <Store className="absolute bottom-8 right-8 size-20 text-primary/30" />
               </div>
 
-              <div className="relative overflow-hidden rounded-[24px] bg-[#fff1ec] p-6">
+              <div className="relative overflow-hidden rounded-[24px] bg-accent/10 p-6">
                 <div className="relative z-10 max-w-[68%]">
-                  <Gift className="mb-4 size-7 text-[#ef6f61]" />
+                  <Gift className="mb-4 size-7 text-accent" />
 
-                  <h2 className="text-xl font-bold text-[#5b342d]">
+                  <h2 className="text-xl font-bold text-foreground">
                     Ưu đãi dành cho bạn
                   </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-[#8a5c53]">
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
                     Khám phá các chương trình ưu đãi dành cho thành viên WOPI.
                   </p>
 
@@ -511,29 +505,29 @@ const HomePage = () => {
                     type="button"
                     variant="outline"
                     onClick={() => navigate("/workshops")}
-                    className="mt-5 rounded-full border-[#ef9e91] bg-white/60 text-[#d85f51]"
+                    className="mt-5 rounded-full border-accent/30 bg-card/60 text-accent hover:bg-accent/10"
                   >
                     Xem ưu đãi
                     <ArrowRight className="ml-1 size-4" />
                   </Button>
                 </div>
 
-                <Gift className="absolute bottom-6 right-6 size-24 text-[#ef9e91]/35" />
+                <Gift className="absolute bottom-6 right-6 size-24 text-accent/30" />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="border-b bg-white px-4 py-5 sm:px-6 lg:px-8">
+        <section className="border-b border-border bg-card px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1440px] gap-3 overflow-x-auto pb-1">
             {CATEGORIES.slice(0, 8).map((category, index) => (
               <button
                 key={category.name}
                 type="button"
                 onClick={() => handleCategoryClick(category.name)}
-                className="flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-[#3f5147] transition hover:bg-[#f2f5ef]"
+                className="flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-muted"
               >
-                <span className="flex size-10 items-center justify-center rounded-xl bg-[#f4f0e8] text-xl">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-xl">
                   {categoryIcons[index % categoryIcons.length]}
                 </span>
 
@@ -544,9 +538,9 @@ const HomePage = () => {
             <button
               type="button"
               onClick={() => navigate("/workshops")}
-              className="ml-auto flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-[#3f5147] transition hover:bg-[#f2f5ef]"
+              className="ml-auto flex min-w-fit items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-muted"
             >
-              <span className="flex size-10 items-center justify-center rounded-xl bg-[#f2f5ef]">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-muted">
                 <Grid2X2 className="size-5" />
               </span>
               Xem tất cả
@@ -563,7 +557,7 @@ const HomePage = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/workshops")}
-                  className="flex items-center gap-1 text-sm font-semibold text-[#456151] hover:text-[#214c36]"
+                  className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-primary"
                 >
                   Xem tất cả
                   <ChevronRight className="size-4" />
@@ -612,7 +606,7 @@ const HomePage = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/workshops")}
-                  className="flex items-center gap-1 text-sm font-semibold text-[#456151] hover:text-[#214c36]"
+                  className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-primary"
                 >
                   Xem tất cả
                   <ChevronRight className="size-4" />
@@ -630,9 +624,9 @@ const HomePage = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/workshops")}
-                    className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfd8d1] bg-white text-[#52675a] transition hover:border-[#214c36] hover:bg-[#f5f8f3]"
+                    className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card text-muted-foreground transition hover:border-primary hover:bg-muted"
                   >
-                    <span className="flex size-12 items-center justify-center rounded-full bg-[#edf3e9]">
+                    <span className="flex size-12 items-center justify-center rounded-full bg-primary/10">
                       <ChevronRight className="size-6" />
                     </span>
 
@@ -646,14 +640,14 @@ const HomePage = () => {
               )}
             </div>
 
-            <aside className="h-fit rounded-2xl border border-[#e6eae5] bg-white p-5 shadow-sm xl:sticky xl:top-24">
+            <aside className="h-fit rounded-2xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-24">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Workshop gần đây</h2>
 
                 <button
                   type="button"
                   onClick={() => navigate("/workshops")}
-                  className="text-xs font-semibold text-[#52675a]"
+                  className="text-xs font-semibold text-muted-foreground"
                 >
                   Xem tất cả
                 </button>
@@ -662,7 +656,7 @@ const HomePage = () => {
               {loading ? (
                 <LoadingBlock className="min-h-48" />
               ) : upcomingWorkshops.length > 0 ? (
-                <div className="divide-y divide-[#edf0ec]">
+                <div className="divide-y divide-border">
                   {upcomingWorkshops.map((workshop) => {
                     const scheduleDate = formatScheduleDate(
                       getScheduleDate(workshop),
@@ -675,27 +669,27 @@ const HomePage = () => {
                         onClick={() => navigate(`/workshops/${workshop._id}`)}
                         className="grid w-full grid-cols-[58px_1fr_56px] gap-3 py-4 text-left"
                       >
-                        <div className="flex flex-col items-center justify-center rounded-xl bg-[#f3f5eb] px-2 py-2">
+                        <div className="flex flex-col items-center justify-center rounded-xl bg-secondary px-2 py-2">
                           <span className="text-xl font-black">
                             {scheduleDate.day}
                           </span>
 
-                          <span className="text-[9px] font-bold text-[#718074]">
+                          <span className="text-[9px] font-bold text-muted-foreground">
                             {scheduleDate.month}
                           </span>
                         </div>
 
                         <div className="min-w-0">
-                          <h3 className="line-clamp-1 text-sm font-bold text-[#263c30]">
+                          <h3 className="line-clamp-1 text-sm font-bold text-foreground">
                             {workshop.title}
                           </h3>
 
-                          <p className="mt-1 flex items-center gap-1 truncate text-xs text-[#718074]">
+                          <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
                             <MapPin className="size-3" />
                             {workshop.location?.address}
                           </p>
 
-                          <p className="mt-1 flex items-center gap-1 text-xs text-[#718074]">
+                          <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock3 className="size-3" />
                             {formatScheduleTime(workshop)}
                           </p>
@@ -732,7 +726,7 @@ const HomePage = () => {
         </section>
 
         <section className="px-4 pb-12 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-[1440px] gap-4 rounded-[28px] bg-[#173f2d] p-7 text-white md:grid-cols-3">
+          <div className="mx-auto grid max-w-[1440px] gap-4 rounded-[28px] bg-primary p-7 text-primary-foreground md:grid-cols-3">
             <FeatureItem
               icon={<Users className="size-6" />}
               title="Cộng đồng sáng tạo"
@@ -766,14 +760,14 @@ type LoadingBlockProps = {
 const LoadingBlock = ({ className = "min-h-56" }: LoadingBlockProps) => {
   return (
     <div className={`flex items-center justify-center ${className}`}>
-      <Loader2 className="size-8 animate-spin text-[#214c36]" />
+      <Loader2 className="size-8 animate-spin text-primary" />
     </div>
   );
 };
 
 const EmptyState = ({ message }: { message: string }) => {
   return (
-    <div className="rounded-2xl border border-dashed border-[#d8ded9] bg-white p-10 text-center text-sm text-[#718074]">
+    <div className="rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm text-muted-foreground">
       {message}
     </div>
   );
@@ -787,15 +781,15 @@ type FeatureItemProps = {
 
 const FeatureItem = ({ icon, title, description }: FeatureItemProps) => {
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-white/5 p-4">
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+    <div className="flex items-center gap-4 rounded-2xl bg-primary-foreground/5 p-4">
+      <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-foreground/10">
         {icon}
       </div>
 
       <div>
         <h3 className="font-bold">{title}</h3>
 
-        <p className="mt-1 text-sm text-white/70">{description}</p>
+        <p className="mt-1 text-sm text-primary-foreground/70">{description}</p>
       </div>
     </div>
   );

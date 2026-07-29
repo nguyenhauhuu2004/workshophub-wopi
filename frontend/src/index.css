@@ -1,372 +1,671 @@
-@import './styles/_variables.scss';
-@import './styles/_keyframe-animations.scss';
+@import "./styles/_variables.scss";
+@import "./styles/_keyframe-animations.scss";
 
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-@config "../tailwind.config.ts";
+@config '../tailwind.config.ts';
+
+/* =========================================================
+   WOPI DESIGN TOKENS
+   Logo colors:
+   - Navy:  #082650
+   - Orange: #FF6B00
+   ========================================================= */
 
 @layer base {
   :root {
-    /* Base */
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    color-scheme: light;
 
-    /* Card */
+    /* -------------------------
+       Brand
+       ------------------------- */
+    --brand-navy: 218 82% 17%;
+    --brand-navy-light: 215 72% 26%;
+    --brand-orange: 25 100% 50%;
+    --brand-orange-light: 27 100% 58%;
+
+    /* -------------------------
+       Base
+       ------------------------- */
+    --background: 216 33% 98%;
+    --foreground: 218 82% 17%;
+
+    /* -------------------------
+       Surface
+       ------------------------- */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 218 82% 17%;
 
-    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 218 82% 17%;
 
-    /* Primary (Indigo) */
-    --primary: 239 84% 67%;
+    /* -------------------------
+       Main actions
+       Navy is the primary UI color.
+       Orange is used for emphasis.
+       ------------------------- */
+    --primary: 218 82% 17%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 239 84% 75%;
+    --primary-hover: 215 72% 26%;
+    --primary-glow: 215 72% 38%;
 
-    /* Secondary */
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 20%;
+    --secondary: 216 33% 96%;
+    --secondary-foreground: 218 82% 17%;
 
-    /* Muted */
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
+    --accent: 25 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 27 100% 58%;
 
-    /* Accent */
-    --accent: 220 14% 94%;
-    --accent-foreground: 222 47% 11%;
+    /* -------------------------
+       Muted
+       ------------------------- */
+    --muted: 216 24% 95%;
+    --muted-foreground: 215 18% 43%;
 
-    /* Chat */
-    --chat-bubble-sent: 239 84% 67%;
+    /* -------------------------
+       Chat
+       ------------------------- */
+    --chat-bubble-sent: 218 82% 17%;
     --chat-bubble-sent-foreground: 0 0% 100%;
 
-    --chat-bubble-received: 220 17% 96%;
-    --chat-bubble-received-foreground: 222 47% 11%;
+    --chat-bubble-received: 216 33% 96%;
+    --chat-bubble-received-foreground: 218 82% 17%;
 
-    /* Status */
-    --online: 142 71% 45%;
-    --offline: 215 13% 65%;
+    --chat-highlight: 25 100% 96%;
+    --chat-highlight-foreground: 25 90% 36%;
+
+    /* -------------------------
+       Status
+       ------------------------- */
+    --online: 145 63% 42%;
+    --away: 38 92% 50%;
+    --offline: 215 14% 62%;
+
+    --success: 145 63% 42%;
+    --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 218 82% 12%;
 
-    --info: 213 94% 68%;
+    --info: 207 90% 54%;
     --info-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Border */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 239 84% 67%;
+    /* -------------------------
+       Form and border
+       ------------------------- */
+    --border: 215 25% 89%;
+    --input: 215 25% 89%;
+    --ring: 25 100% 50%;
 
-    --radius: 0.85rem;
+    /* -------------------------
+       Shape
+       ------------------------- */
+    --radius-xs: 0.375rem;
+    --radius-sm: 0.5rem;
+    --radius: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, #4f46e5, #6366f1);
-    --gradient-chat: linear-gradient(135deg, #4f46e5, #6366f1);
-    --gradient-accent: linear-gradient(135deg, #6366f1, #818cf8);
-
-    --gradient-glass: linear-gradient(
-      180deg,
-      #ffffff,
-      #f8fafc
-    );
-
-    --gradient-purple: linear-gradient(
-      180deg,
-      #ffffff,
-      #f8fafc
-    );
-
-    /* Shadows */
-    --shadow-soft: 0 8px 24px rgba(15, 23, 42, .08);
-    --shadow-glow: 0 10px 30px rgba(79, 70, 229, .18);
-    --shadow-bubble: 0 2px 10px rgba(15, 23, 42, .08);
-
-    /* Sidebar */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 15%;
-
-    --sidebar-primary: 239 84% 67%;
-    --sidebar-primary-foreground: 0 0% 100%;
-
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-accent-foreground: 222 47% 15%;
-
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 239 84% 67%;
-
-    /* Animation */
-    --transition-smooth: all .25s ease;
-    --transition-bounce: all .35s cubic-bezier(.2,.8,.2,1);
-  }
-
-  .dark {
-    --background: 222 47% 8%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 10%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 239 84% 75%;
-
-    --secondary: 223 25% 16%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 223 25% 16%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 223 25% 16%;
-    --accent-foreground: 210 40% 98%;
-
-    --chat-bubble-sent: 239 84% 67%;
-    --chat-bubble-sent-foreground: 0 0% 100%;
-
-    --chat-bubble-received: 223 25% 16%;
-    --chat-bubble-received-foreground: 210 40% 98%;
-
-    --online: 142 71% 45%;
-    --away: 38 92% 50%;
-    --offline: 215 15% 45%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 223 20% 18%;
-    --input: 223 20% 18%;
-    --ring: 239 84% 67%;
-
+    /* -------------------------
+       Gradients
+       ------------------------- */
     --gradient-primary: linear-gradient(
       135deg,
-      #4f46e5,
-      #6366f1
-    );
-
-    --gradient-chat: linear-gradient(
-      135deg,
-      #4338ca,
-      #4f46e5
+      hsl(218 82% 17%),
+      hsl(215 72% 26%)
     );
 
     --gradient-accent: linear-gradient(
       135deg,
-      #4f46e5,
-      #6366f1
+      hsl(25 100% 50%),
+      hsl(27 100% 58%)
+    );
+
+    --gradient-brand: linear-gradient(
+      135deg,
+      hsl(218 82% 17%) 0%,
+      hsl(215 72% 26%) 58%,
+      hsl(25 100% 50%) 100%
+    );
+
+    --gradient-chat: linear-gradient(
+      135deg,
+      hsl(218 82% 17%),
+      hsl(215 72% 26%)
     );
 
     --gradient-glass: linear-gradient(
       180deg,
-      #111827,
-      #1f2937
+      rgb(255 255 255 / 0.94),
+      rgb(247 249 252 / 0.88)
     );
 
-    --gradient-purple: linear-gradient(
+    --gradient-surface: linear-gradient(
       180deg,
-      #0f172a,
-      #111827
+      hsl(0 0% 100%),
+      hsl(216 33% 98%)
     );
 
-    --shadow-soft: 0 8px 24px rgba(0,0,0,.35);
-    --shadow-glow: 0 8px 28px rgba(79,70,229,.25);
-    --shadow-bubble: 0 2px 10px rgba(0,0,0,.30);
+    /* -------------------------
+       Shadows
+       ------------------------- */
+    --shadow-xs: 0 1px 2px rgb(8 38 80 / 0.05);
 
-    --sidebar-background: 222 47% 10%;
-    --sidebar-foreground: 210 40% 96%;
+    --shadow-soft: 0 8px 24px rgb(8 38 80 / 0.08);
 
-    --sidebar-primary: 239 84% 67%;
+    --shadow-card: 0 12px 32px rgb(8 38 80 / 0.1);
+
+    --shadow-glow: 0 10px 30px rgb(255 107 0 / 0.2);
+
+    --shadow-primary: 0 10px 30px rgb(8 38 80 / 0.18);
+
+    --shadow-bubble: 0 3px 12px rgb(8 38 80 / 0.1);
+
+    /* -------------------------
+       Sidebar
+       ------------------------- */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 218 82% 17%;
+
+    --sidebar-primary: 218 82% 17%;
     --sidebar-primary-foreground: 0 0% 100%;
 
-    --sidebar-accent: 223 25% 16%;
-    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-accent: 25 100% 96%;
+    --sidebar-accent-foreground: 25 90% 36%;
 
-    --sidebar-border: 223 20% 18%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-border: 215 25% 89%;
+    --sidebar-ring: 25 100% 50%;
+
+    /* -------------------------
+       Motion
+       ------------------------- */
+    --transition-fast:
+      color 150ms ease, background-color 150ms ease, border-color 150ms ease,
+      opacity 150ms ease;
+
+    --transition-smooth: all 250ms ease;
+
+    --transition-bounce: all 350ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* -------------------------
+       Base
+       ------------------------- */
+    --background: 218 62% 7%;
+    --foreground: 210 40% 98%;
+
+    /* -------------------------
+       Surface
+       ------------------------- */
+    --card: 218 54% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 218 54% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    /* -------------------------
+       Main actions
+       ------------------------- */
+    --primary: 25 100% 50%;
+    --primary-foreground: 218 82% 10%;
+    --primary-hover: 27 100% 58%;
+    --primary-glow: 27 100% 64%;
+
+    --secondary: 217 38% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 25 100% 50%;
+    --accent-foreground: 218 82% 10%;
+    --accent-hover: 27 100% 58%;
+
+    /* -------------------------
+       Muted
+       ------------------------- */
+    --muted: 217 38% 15%;
+    --muted-foreground: 215 20% 68%;
+
+    /* -------------------------
+       Chat
+       ------------------------- */
+    --chat-bubble-sent: 25 100% 50%;
+    --chat-bubble-sent-foreground: 218 82% 10%;
+
+    --chat-bubble-received: 217 38% 15%;
+    --chat-bubble-received-foreground: 210 40% 98%;
+
+    --chat-highlight: 25 80% 14%;
+    --chat-highlight-foreground: 27 100% 72%;
+
+    /* -------------------------
+       Status
+       ------------------------- */
+    --online: 145 63% 47%;
+    --away: 38 92% 55%;
+    --offline: 215 15% 45%;
+
+    --success: 145 63% 47%;
+    --success-foreground: 218 82% 8%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 218 82% 8%;
+
+    --info: 207 90% 62%;
+    --info-foreground: 218 82% 8%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* -------------------------
+       Form and border
+       ------------------------- */
+    --border: 217 30% 19%;
+    --input: 217 30% 19%;
+    --ring: 25 100% 50%;
+
+    /* -------------------------
+       Gradients
+       ------------------------- */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(25 100% 50%),
+      hsl(27 100% 58%)
+    );
+
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(25 100% 50%),
+      hsl(27 100% 58%)
+    );
+
+    --gradient-brand: linear-gradient(
+      135deg,
+      hsl(218 72% 15%) 0%,
+      hsl(215 62% 22%) 58%,
+      hsl(25 100% 50%) 100%
+    );
+
+    --gradient-chat: linear-gradient(
+      135deg,
+      hsl(25 100% 50%),
+      hsl(27 100% 58%)
+    );
+
+    --gradient-glass: linear-gradient(
+      180deg,
+      rgb(12 29 54 / 0.92),
+      rgb(8 21 42 / 0.88)
+    );
+
+    --gradient-surface: linear-gradient(
+      180deg,
+      hsl(218 54% 11%),
+      hsl(218 62% 8%)
+    );
+
+    /* -------------------------
+       Shadows
+       ------------------------- */
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.2);
+
+    --shadow-soft: 0 8px 24px rgb(0 0 0 / 0.35);
+
+    --shadow-card: 0 12px 32px rgb(0 0 0 / 0.4);
+
+    --shadow-glow: 0 10px 30px rgb(255 107 0 / 0.24);
+
+    --shadow-primary: 0 10px 30px rgb(255 107 0 / 0.18);
+
+    --shadow-bubble: 0 3px 12px rgb(0 0 0 / 0.3);
+
+    /* -------------------------
+       Sidebar
+       ------------------------- */
+    --sidebar-background: 218 54% 9%;
+    --sidebar-foreground: 210 40% 96%;
+
+    --sidebar-primary: 25 100% 50%;
+    --sidebar-primary-foreground: 218 82% 10%;
+
+    --sidebar-accent: 217 38% 15%;
+    --sidebar-accent-foreground: 27 100% 68%;
+
+    --sidebar-border: 217 30% 19%;
+    --sidebar-ring: 25 100% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
   }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    @apply outline-none;
+  }
+
+  :focus-visible {
+    @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.2);
+    color: hsl(var(--foreground));
+  }
+
+  /* =======================================================
+     Leaflet
+     ======================================================= */
+
   .leaflet-container {
     @apply !bg-card !font-[inherit];
   }
+
   .leaflet-container a {
     @apply !text-inherit;
   }
+
   .leaflet-div-icon {
-    @apply !bg-transparent !border-none;
+    @apply !border-none !bg-transparent;
   }
-  .leaflet-popup-content-wrapper, .leaflet-popup-content, .leaflet-popup-content p {
+
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-content,
+  .leaflet-popup-content p {
     @apply ![all:unset];
   }
+
   .leaflet-popup {
     @apply !animate-none;
   }
+
   .leaflet-popup-close-button {
-    @apply ring-offset-background focus:ring-ring bg-secondary rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:outline-hidden;
+    @apply rounded-sm bg-secondary opacity-70
+      ring-offset-background transition-opacity
+      hover:opacity-100
+      focus:outline-hidden focus:ring-2 focus:ring-ring;
   }
-  .leaflet-tooltip, .leaflet-draw-tooltip {
-    @apply !bg-foreground !text-background !animate-none !rounded-md !border-none !p-0 !px-3 !py-1.5 !shadow-none;
+
+  .leaflet-tooltip,
+  .leaflet-draw-tooltip {
+    @apply !animate-none !rounded-md !border-none
+      !bg-foreground !px-3 !py-1.5
+      !text-background !shadow-none;
   }
-  .leaflet-draw-tooltip:before {
-    @apply bg-foreground !top-1/2 !right-0.5 size-2.5 translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] !border-none;
+
+  .leaflet-draw-tooltip::before {
+    @apply !right-0.5 !top-1/2 size-2.5
+      translate-x-1/2 -translate-y-1/2
+      rotate-45 rounded-[2px]
+      !border-none bg-foreground;
   }
+
   .leaflet-error-draw-tooltip {
-    @apply !bg-destructive !text-white;
+    @apply !bg-destructive !text-destructive-foreground;
   }
-  .leaflet-error-draw-tooltip:before {
+
+  .leaflet-error-draw-tooltip::before {
     @apply bg-destructive;
   }
+
   .leaflet-draw-tooltip-subtext {
     @apply !text-background;
   }
-  .leaflet-popup-tip-container, .leaflet-tooltip-top:before, .leaflet-tooltip-bottom:before, .leaflet-tooltip-left:before, .leaflet-tooltip-right:before {
+
+  .leaflet-popup-tip-container,
+  .leaflet-tooltip-top::before,
+  .leaflet-tooltip-bottom::before,
+  .leaflet-tooltip-left::before,
+  .leaflet-tooltip-right::before {
     @apply hidden;
   }
+
   .leaflet-control-attribution {
-    @apply !bg-muted rounded-md !px-[4px] !py-[2px] text-[10px] !leading-none !text-inherit;
+    @apply rounded-md !bg-muted !px-1 !py-0.5
+      text-[10px] !leading-none !text-inherit;
   }
+
   .leaflet-draw-guide-dash {
     @apply rounded-full;
   }
+
   .leaflet-edit-marker-selected {
     @apply !border-transparent !bg-transparent;
   }
+
   .marker-cluster div {
     @apply font-[inherit];
   }
 }
 
-/* Chat App Utility Classes */
+/* =========================================================
+   COMPONENT CLASSES
+   ========================================================= */
+
 @layer components {
-  /* Glass */
+  /* -------------------------
+     Glass surfaces
+     ------------------------- */
   .glass {
-    @apply backdrop-blur-xl bg-white/80 border border-slate-200/80;
+    @apply border border-border/80
+      bg-white/80 backdrop-blur-xl;
   }
 
   .dark .glass {
-    @apply backdrop-blur-xl bg-slate-900/70 border border-slate-700/70;
+    @apply border-border/70 bg-card/75;
   }
 
   .glass-strong {
-    @apply backdrop-blur-2xl bg-card/95 border border-border shadow-sm;
+    @apply border border-border
+      bg-card/95 backdrop-blur-2xl;
+    box-shadow: var(--shadow-soft);
   }
 
-  /* Chat Bubble */
+  /* -------------------------
+     Buttons
+     ------------------------- */
+  .btn-brand {
+    @apply inline-flex items-center justify-center
+      rounded-[var(--radius)]
+      bg-primary px-4 py-2
+      font-medium text-primary-foreground
+      disabled:pointer-events-none disabled:opacity-50;
+    box-shadow: var(--shadow-primary);
+    transition: var(--transition-smooth);
+  }
+
+  .btn-brand:hover {
+    background: hsl(var(--primary-hover));
+    transform: translateY(-1px);
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center
+      rounded-[var(--radius)]
+      bg-accent px-4 py-2
+      font-medium text-accent-foreground
+      disabled:pointer-events-none disabled:opacity-50;
+    box-shadow: var(--shadow-glow);
+    transition: var(--transition-smooth);
+  }
+
+  .btn-accent:hover {
+    background: hsl(var(--accent-hover));
+    transform: translateY(-1px);
+  }
+
+  /* -------------------------
+     Chat bubbles
+     ------------------------- */
   .chat-bubble-sent {
-    @apply bg-primary text-primary-foreground shadow-sm;
+    color: hsl(var(--chat-bubble-sent-foreground));
+    background: hsl(var(--chat-bubble-sent));
+    box-shadow: var(--shadow-bubble);
   }
 
   .chat-bubble-received {
-    @apply bg-slate-100 text-slate-800 border border-slate-200;
+    color: hsl(var(--chat-bubble-received-foreground));
+    background: hsl(var(--chat-bubble-received));
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-bubble);
   }
 
-  .dark .chat-bubble-received {
-    @apply bg-slate-800 text-slate-100 border border-slate-700;
+  .chat-bubble-highlight {
+    color: hsl(var(--chat-highlight-foreground));
+    background: hsl(var(--chat-highlight));
+    border: 1px solid hsl(var(--accent) / 0.2);
   }
 
-  /* Status */
+  /* -------------------------
+     Status indicators
+     ------------------------- */
   .status-online {
-    @apply bg-emerald-500;
-    box-shadow: 0 0 10px rgb(34 197 94 / 0.35);
+    background: hsl(var(--online));
+    box-shadow: 0 0 10px hsl(var(--online) / 0.35);
+  }
+
+  .status-away {
+    background: hsl(var(--away));
+    box-shadow: 0 0 10px hsl(var(--away) / 0.3);
   }
 
   .status-offline {
-    @apply bg-slate-400;
+    background: hsl(var(--offline));
   }
 
-  /* Backgrounds */
+  /* -------------------------
+     Background utilities
+     ------------------------- */
   .bg-gradient-primary {
-    background: linear-gradient(135deg, #4f46e5, #6366f1);
-  }
-
-  .bg-gradient-chat {
-    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    background: var(--gradient-primary);
   }
 
   .bg-gradient-accent {
-    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    background: var(--gradient-accent);
   }
 
-  .dark .bg-gradient-accent {
-    background: linear-gradient(135deg, #111827, #1f2937);
+  .bg-gradient-brand {
+    background: var(--gradient-brand);
+  }
+
+  .bg-gradient-chat {
+    background: var(--gradient-chat);
   }
 
   .bg-gradient-glass {
     background: var(--gradient-glass);
   }
 
-  .bg-gradient-purple {
-    background: var(--gradient-purple);
+  .bg-gradient-surface {
+    background: var(--gradient-surface);
   }
 
-  /* Shadows */
+  /* Giữ tương thích với class cũ */
+  .bg-gradient-purple {
+    background: var(--gradient-surface);
+  }
+
+  /* -------------------------
+     Shadow utilities
+     ------------------------- */
   .shadow-soft {
-    box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
   }
 
   .shadow-glow {
-    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.18);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-primary {
+    box-shadow: var(--shadow-primary);
   }
 
   .shadow-bubble {
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--shadow-bubble);
   }
 
-  .dark .shadow-soft {
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  }
-
-  .dark .shadow-glow {
-    box-shadow: 0 8px 28px rgba(99, 102, 241, 0.2);
-  }
-
-  .dark .shadow-bubble {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  }
-
-  /* Transition */
-  .transition-bounce {
-    transition: all 0.35s cubic-bezier(.2,.8,.2,1);
+  /* -------------------------
+     Transitions
+     ------------------------- */
+  .transition-fast {
+    transition: var(--transition-fast);
   }
 
   .transition-smooth {
-    transition: all .25s ease;
+    transition: var(--transition-smooth);
   }
 
-  /* Pulse */
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* -------------------------
+     Pulse indicator
+     ------------------------- */
   .pulse-ring {
     @apply relative;
   }
 
   .pulse-ring::before {
     content: "";
-    @apply absolute inset-0 rounded-full bg-primary/20 animate-ping;
+    @apply absolute inset-0 animate-ping rounded-full;
+    background: hsl(var(--accent) / 0.22);
     animation-duration: 2s;
   }
 
-  /* Message Animation */
+  /* -------------------------
+     Message entrance
+     ------------------------- */
   .message-bounce {
-    animation: messageSlideIn .25s ease-out forwards;
+    animation: message-slide-in 250ms ease-out both;
+  }
+}
+
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes message-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
   }
 
-  @keyframes messageSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

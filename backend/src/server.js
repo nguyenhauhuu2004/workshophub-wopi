@@ -8,6 +8,8 @@ import { protectedRoute } from "./middlewares/authMiddleware.js";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
 import workshopRoutes from "./routes/workshopRoutes.js";
+import hostRoutes from "./routes/hostRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
 
 dotenv.config();
 
@@ -28,12 +30,13 @@ cloudinary.config({
 
 // public routes
 app.use("/api/auth", authRoute);
-
 app.use("/api/workshops", workshopRoutes);
 // private routes
 app.use(protectedRoute);
 app.use("/api/users", userRoute);
+app.use("/api/host", hostRoutes);
 
+app.use("/api/bookings", bookingRoutes);
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`server bắt đầu trên cổng ${PORT}`);

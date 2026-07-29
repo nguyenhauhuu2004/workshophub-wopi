@@ -15,6 +15,11 @@ import {
 import { protectedRoute, isHost } from "../middlewares/authMiddleware.js";
 import { workshopUpload } from "../middlewares/workshopUploadMiddleware.js";
 
+import {
+  createWorkshopReview,
+  getWorkshopReviews,
+} from "../controllers/workshopReviewController.js";
+
 const router = express.Router();
 
 /*
@@ -31,6 +36,11 @@ router.get("/goong/reverse-geocode", reverseGoongGeocode);
  * Nếu đặt sau /:id thì Express có thể hiểu "nearby" là id.
  */
 router.get("/nearby", getNearbyWorkshops);
+
+router.get("/:id/reviews", getWorkshopReviews);
+
+router.post("/:id/reviews", protectedRoute, createWorkshopReview);
+
 router.get("/", getWorkshops);
 router.get("/:id", getWorkshopById);
 

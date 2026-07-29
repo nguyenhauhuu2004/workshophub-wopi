@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { WorkshopsPage } from "./pages/WorkshopsPage";
 import { WorkshopDetail } from "./pages/WorkshopDetail";
 import { CreateWorkshopPage } from "./pages/CreateWorkshopPage2.tsx";
+import HostDashboardPage from "@/pages/HostDashboardPage";
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
           </Route>
           <Route element={<ProtectedRoute allowedRoles={["host"]} />}>
             <Route path="/workshops/create" element={<CreateWorkshopPage />} />
+            <Route path="/host" element={<HostDashboardPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
