@@ -23,7 +23,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Star,
   Store,
   TicketCheck,
   Users,
