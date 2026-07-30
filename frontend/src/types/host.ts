@@ -1,38 +1,21 @@
-export type BookingStatus =
-  | "pending_payment"
-  | "confirmed"
-  | "checked_in"
-  | "completed"
-  | "cancelled"
-  | "no_show"
-  | "refunded";
+import type { BookingPaymentStatus, BookingStatus } from "@/types/booking";
 
-export type PaymentStatus =
-  | "unpaid"
-  | "pending"
-  | "paid"
-  | "failed"
-  | "partially_refunded"
-  | "refunded";
+import type { WorkshopMedia, WorkshopStatus } from "@/types/workshop";
 
-export type WorkshopStatus =
-  | "draft"
-  | "pending_review"
-  | "published"
-  | "paused"
-  | "completed"
-  | "cancelled";
+export type HostRevenueSeriesItem = {
+  label: string;
+  gross: number;
+  net: number;
+};
 
 export type HostDashboardSummary = {
   revenue: {
     gross: number;
-    discounts: number;
-    refunds: number;
     platformFee: number;
     net: number;
     pendingPayout: number;
-    paidOut: number;
   };
+
   bookings: {
     total: number;
     confirmed: number;
@@ -40,6 +23,7 @@ export type HostDashboardSummary = {
     cancelled: number;
     noShow: number;
   };
+
   workshops: {
     total: number;
     published: number;
@@ -48,106 +32,112 @@ export type HostDashboardSummary = {
     emptySessions: number;
     lowFillSessions: number;
   };
-  promotion: {
-    activeCampaigns: number;
-    impressions: number;
-    clicks: number;
-    attributedBookings: number;
-    spend: number;
-  };
-  revenueSeries: Array<{
-    label: string;
-    gross: number;
-    net: number;
-  }>;
+
+  revenueSeries: HostRevenueSeriesItem[];
+};
+
+export type HostWorkshopSession = {
+  _id: string;
+  startAt: string;
+  seatsTotal: number;
+  spotsLeft: number;
 };
 
 export type HostWorkshopRow = {
   _id: string;
   title: string;
-  category: string;
+  categories: string[];
+  thumbnail: WorkshopMedia | null;
+
   status: WorkshopStatus;
-  thumbnail?: {
-    url: string;
-  };
-  nextSession?: {
-    sessionId: string;
-    startsAt: string;
-    capacity: number;
-    bookedCount: number;
-  };
+
+  nextSession: HostWorkshopSession | null;
+
+  occupancyRate: number;
   totalBookings: number;
   totalRevenue: number;
-  occupancyRate: number;
 };
 
 export type HostBookingRow = {
   _id: string;
   bookingCode: string;
+
   attendeeName: string;
   attendeeEmail: string;
-  workshopId: string;
+
   workshopTitle: string;
-  sessionId: string;
   sessionLabel: string;
+
   quantity: number;
-  total: number;
-  paymentStatus: PaymentStatus;
+  grossAmount: number;
+
+  paymentStatus: BookingPaymentStatus;
+
   status: BookingStatus;
-  checkedInAt?: string;
+
   createdAt: string;
+  checkedInAt: string | null;
 };
 
-export type CheckInResult = {
-  booking: HostBookingRow;
-  message: string;
-  alreadyCheckedIn?: boolean;
-};
+export type PromotionPlacement = "homepage" | "search_top" | "category_top";
 
-export type RevenueTransaction = {
-  _id: string;
-  bookingCode: string;
-  workshopTitle: string;
-  paidAt: string;
-  gross: number;
-  refund: number;
-  platformFee: number;
-  hostNet: number;
-  payoutStatus: "pending" | "available" | "paid" | "held";
-};
+export type PromotionCampaignStatus =
+  | "scheduled"
+  | "active"
+  | "completed"
+  | "cancelled";
+
+export type PromotionPaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export type PromotionPackage = {
+  _id: string;
   code: string;
   name: string;
+  description: string;
   price: number;
   durationDays: number;
-  placement:
-    | "homepage"
-    | "search"
-    | "category"
-    | "location"
-    | "homepage_search";
-  description: string;
+  placement: PromotionPlacement;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type PromotionCampaign = {
   _id: string;
+
   workshopId: string;
   workshopTitle: string;
+
   packageCode: string;
   packageName: string;
-  placement: string;
+
+  placement: PromotionPlacement;
+
+  price: number;
+  durationDays: number;
+
   startAt: string;
   endAt: string;
-  price: number;
-  status:
-    | "pending_payment"
-    | "scheduled"
-    | "active"
-    | "completed"
-    | "cancelled"
-    | "rejected";
+
+  status: PromotionCampaignStatus;
+
+  paymentStatus: PromotionPaymentStatus;
+
   impressions: number;
   clicks: number;
   attributedBookings: number;
+
+  createdAt: string;
+};
+
+export type CreatePromotionCampaignData = {
+  workshopId: string;
+  packageCode: string;
+  startAt: string;
+};
+
+export type CreatePromotionCampaignResponse = {
+  message: string;
+  campaign: PromotionCampaign;
 };

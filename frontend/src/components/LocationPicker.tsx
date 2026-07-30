@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+
 import "@goongmaps/goong-js/dist/goong-js.css";
+
 import goongjs, {
   type Map as GoongMap,
   type Marker as GoongMarker,
@@ -10,28 +12,33 @@ import { Loader2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { workshopService } from "@/services/workshopService";
-import type { WorkshopLocation } from "@/types/workshop";
 
-type Prediction = {
-  description: string;
-  place_id: string;
+import type {
+  WorkshopLocationForm,
+  GoongPlacePrediction,
+} from "@/types/workshop";
+
+type LocationPickerProps = {
+  value: WorkshopLocationForm;
+  onChange: (value: WorkshopLocationForm) => void;
 };
 
-type Props = {
-  value: WorkshopLocation;
-  onChange: (value: WorkshopLocation) => void;
-};
+const DEFAULT_LONGITUDE = 106.6297;
+const DEFAULT_LATITUDE = 10.8231;
 
-const LocationPicker = ({ value, onChange }: Props) => {
+const LocationPicker = ({ value, onChange }: LocationPickerProps) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
+
   const mapRef = useRef<GoongMap | null>(null);
+
   const markerRef = useRef<GoongMarker | null>(null);
 
   const valueRef = useRef(value);
   const onChangeRef = useRef(onChange);
 
   const [query, setQuery] = useState(value.address);
-  const [results, setResults] = useState<Prediction[]>([]);
+
+  const [results, setResults] = useState<GoongPlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -42,20 +49,35 @@ const LocationPicker = ({ value, onChange }: Props) => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
+  useEffect(() => {
+    setQuery(value.address);
+  }, [value.address]);
+
+  const updateValue = (nextValue: WorkshopLocationForm) => {
+    valueRef.current = nextValue;
+    onChangeRef.current(nextValue);
+  };
+
   const setMarker = (longitude: number, latitude: number) => {
-    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
 
     if (!markerRef.current) {
       markerRef.current = new goongjs.Marker({
         draggable: true,
       })
         .setLngLat([longitude, latitude])
-        .addTo(mapRef.current);
+        .addTo(map);
 
       markerRef.current.on("dragend", () => {
         const position = markerRef.current?.getLngLat();
 
-        if (!position) return;
+        if (!position) {
+          return;
+        }
 
         void selectCoordinates(position.lat, position.lng);
       });
@@ -63,7 +85,7 @@ const LocationPicker = ({ value, onChange }: Props) => {
       markerRef.current.setLngLat([longitude, latitude]);
     }
 
-    mapRef.current.flyTo({
+    map.flyTo({
       center: [longitude, latitude],
       zoom: 16,
       essential: true,
@@ -72,40 +94,65 @@ const LocationPicker = ({ value, onChange }: Props) => {
 
   const selectCoordinates = async (latitude: number, longitude: number) => {
     try {
+      setLoading(true);
+
       const result = await workshopService.reverseGeocode(latitude, longitude);
 
       const address = result?.formatted_address ?? `${latitude}, ${longitude}`;
 
-      const nextValue: WorkshopLocation = {
+      const nextValue: WorkshopLocationForm = {
         ...valueRef.current,
         address,
-        latitude,
-        longitude,
         placeId: result?.place_id ?? "",
+        coordinates: {
+          type: "Point",
+          coordinates: [longitude, latitude],
+        },
       };
 
       setQuery(address);
       setResults([]);
-      onChangeRef.current(nextValue);
+      updateValue(nextValue);
       setMarker(longitude, latitude);
     } catch (error) {
-      console.error(error);
+      console.error("Reverse geocode error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    const container = mapContainerRef.current;
 
-    goongjs.accessToken = import.meta.env.VITE_GOONG_MAPTILES_KEY;
+    if (!container) {
+      return;
+    }
 
-    const longitude = value.longitude ?? 106.6297;
-    const latitude = value.latitude ?? 10.8231;
+    const accessToken = import.meta.env.VITE_GOONG_MAPTILES_KEY;
+
+    if (!accessToken) {
+      console.error("Thiếu VITE_GOONG_MAPTILES_KEY");
+
+      return;
+    }
+
+    goongjs.accessToken = accessToken;
+
+    const [selectedLongitude, selectedLatitude] =
+      valueRef.current.coordinates.coordinates;
+
+    const longitude = selectedLongitude ?? DEFAULT_LONGITUDE;
+
+    const latitude = selectedLatitude ?? DEFAULT_LATITUDE;
+
+    const hasCoordinates =
+      selectedLongitude !== null && selectedLatitude !== null;
 
     const map = new goongjs.Map({
-      container: mapContainerRef.current,
+      container,
       style: "https://tiles.goong.io/assets/goong_map_web.json",
       center: [longitude, latitude],
-      zoom: value.latitude ? 16 : 11,
+      zoom: hasCoordinates ? 16 : 11,
     });
 
     map.addControl(new goongjs.NavigationControl(), "top-right");
@@ -116,13 +163,14 @@ const LocationPicker = ({ value, onChange }: Props) => {
 
     mapRef.current = map;
 
-    if (value.longitude !== null && value.latitude !== null) {
-      setMarker(value.longitude, value.latitude);
+    if (selectedLongitude !== null && selectedLatitude !== null) {
+      setMarker(selectedLongitude, selectedLatitude);
     }
 
     return () => {
       markerRef.current?.remove();
       markerRef.current = null;
+
       map.remove();
       mapRef.current = null;
     };
@@ -133,6 +181,7 @@ const LocationPicker = ({ value, onChange }: Props) => {
 
     if (text.length < 2) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -140,17 +189,20 @@ const LocationPicker = ({ value, onChange }: Props) => {
       try {
         setLoading(true);
 
+        const [longitude, latitude] = valueRef.current.coordinates.coordinates;
+
         const location =
-          valueRef.current.latitude !== null &&
-          valueRef.current.longitude !== null
-            ? `${valueRef.current.latitude},${valueRef.current.longitude}`
+          longitude !== null && latitude !== null
+            ? `${latitude},${longitude}`
             : undefined;
 
         const predictions = await workshopService.searchPlaces(text, location);
 
         setResults(predictions);
       } catch (error) {
-        console.error(error);
+        console.error("Search places error:", error);
+
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -161,7 +213,7 @@ const LocationPicker = ({ value, onChange }: Props) => {
     };
   }, [query]);
 
-  const selectPlace = async (prediction: Prediction) => {
+  const selectPlace = async (prediction: GoongPlacePrediction) => {
     try {
       setLoading(true);
 
@@ -169,21 +221,30 @@ const LocationPicker = ({ value, onChange }: Props) => {
 
       const coordinates = detail?.geometry?.location;
 
-      if (!coordinates) return;
+      if (!coordinates) {
+        return;
+      }
 
-      const nextValue: WorkshopLocation = {
-        ...value,
+      const nextValue: WorkshopLocationForm = {
+        ...valueRef.current,
+
         address: detail.formatted_address ?? prediction.description,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
+
         placeId: detail.place_id ?? prediction.place_id,
+
+        coordinates: {
+          type: "Point",
+          coordinates: [coordinates.lng, coordinates.lat],
+        },
       };
 
       setQuery(nextValue.address);
       setResults([]);
-      onChange(nextValue);
+      updateValue(nextValue);
 
       setMarker(coordinates.lng, coordinates.lat);
+    } catch (error) {
+      console.error("Get place detail error:", error);
     } finally {
       setLoading(false);
     }
@@ -202,12 +263,13 @@ const LocationPicker = ({ value, onChange }: Props) => {
           onChange={(event) => {
             const address = event.target.value;
 
-            setQuery(address);
-
-            onChange({
-              ...value,
+            const nextValue: WorkshopLocationForm = {
+              ...valueRef.current,
               address,
-            });
+            };
+
+            setQuery(address);
+            updateValue(nextValue);
           }}
         />
 
@@ -240,12 +302,14 @@ const LocationPicker = ({ value, onChange }: Props) => {
         rows={3}
         value={value.notes}
         placeholder="Ghi chú đường đi, tầng, chỗ gửi xe..."
-        onChange={(event) =>
-          onChange({
-            ...value,
+        onChange={(event) => {
+          const nextValue: WorkshopLocationForm = {
+            ...valueRef.current,
             notes: event.target.value,
-          })
-        }
+          };
+
+          updateValue(nextValue);
+        }}
       />
     </div>
   );

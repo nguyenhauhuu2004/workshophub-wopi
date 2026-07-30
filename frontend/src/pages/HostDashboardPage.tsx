@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
 import {
   BadgeCheck,
-  Banknote,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -15,14 +14,15 @@ import {
   QrCode,
   Search,
   TicketCheck,
-  WalletCards,
-  XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+
 import axios from "axios";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { bookingService } from "@/services/bookingService";
 import { hostService } from "@/services/hostService";
 
 import type {
@@ -31,7 +31,6 @@ import type {
   HostWorkshopRow,
   PromotionCampaign,
   PromotionPackage,
-  RevenueTransaction,
 } from "@/types/host";
 
 type DashboardTab =
@@ -39,13 +38,12 @@ type DashboardTab =
   | "workshops"
   | "bookings"
   | "checkin"
-  | "revenue"
   | "promotions";
 
-const tabs: Array<{
+const TABS: Array<{
   value: DashboardTab;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }> = [
   {
     value: "overview",
@@ -68,48 +66,18 @@ const tabs: Array<{
     icon: <QrCode className="size-4" />,
   },
   {
-    value: "revenue",
-    label: "Doanh thu",
-    icon: <WalletCards className="size-4" />,
-  },
-  {
     value: "promotions",
-    label: "Quảng cáo",
+    label: "Quảng bá",
     icon: <Megaphone className="size-4" />,
   },
 ];
 
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatDateTime = (value?: string) => {
-  if (!value) return "Chưa cập nhật";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
-};
-
 const EMPTY_SUMMARY: HostDashboardSummary = {
   revenue: {
     gross: 0,
-    discounts: 0,
-    refunds: 0,
     platformFee: 0,
     net: 0,
     pendingPayout: 0,
-    paidOut: 0,
   },
   bookings: {
     total: 0,
@@ -126,14 +94,44 @@ const EMPTY_SUMMARY: HostDashboardSummary = {
     emptySessions: 0,
     lowFillSessions: 0,
   },
-  promotion: {
-    activeCampaigns: 0,
-    impressions: 0,
-    clicks: 0,
-    attributedBookings: 0,
-    spend: 0,
-  },
   revenueSeries: [],
+};
+
+const formatMoney = (value: number) => {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return "Chưa cập nhật";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Không hợp lệ";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    return error.response?.data?.message ?? fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 export default function HostDashboardPage() {
@@ -147,23 +145,23 @@ export default function HostDashboardPage() {
 
   const [bookings, setBookings] = useState<HostBookingRow[]>([]);
 
-  const [transactions, setTransactions] = useState<RevenueTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [checkInLoading, setCheckInLoading] = useState(false);
+
+  const [ticketCode, setTicketCode] = useState("");
+
+  const [lastCheckIn, setLastCheckIn] = useState<HostBookingRow | null>(null);
+
+  const [workshopSearch, setWorkshopSearch] = useState("");
+
+  const [bookingSearch, setBookingSearch] = useState("");
 
   const [promotionPackages, setPromotionPackages] = useState<
     PromotionPackage[]
   >([]);
 
   const [campaigns, setCampaigns] = useState<PromotionCampaign[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [checkInLoading, setCheckInLoading] = useState(false);
-
-  const [ticketCode, setTicketCode] = useState("");
-  const [lastCheckIn, setLastCheckIn] = useState<HostBookingRow | null>(null);
-
-  const [workshopSearch, setWorkshopSearch] = useState("");
-
-  const [bookingSearch, setBookingSearch] = useState("");
 
   const [promotionWorkshopId, setPromotionWorkshopId] = useState("");
 
@@ -186,24 +184,23 @@ export default function HostDashboardPage() {
           dashboardData,
           workshopData,
           bookingData,
-          transactionData,
           packageData,
           campaignData,
         ] = await Promise.all([
           hostService.getDashboard(),
           hostService.getWorkshops(),
           hostService.getBookings(),
-          hostService.getRevenueTransactions(),
           hostService.getPromotionPackages(),
           hostService.getPromotionCampaigns(),
         ]);
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         setSummary(dashboardData);
         setWorkshops(workshopData);
         setBookings(bookingData);
-        setTransactions(transactionData);
         setPromotionPackages(packageData);
         setCampaigns(campaignData);
 
@@ -216,7 +213,10 @@ export default function HostDashboardPage() {
         }
       } catch (error) {
         console.error("Load host dashboard error:", error);
-        toast.error("Không thể tải dữ liệu quản lý host");
+
+        toast.error(
+          getApiErrorMessage(error, "Không thể tải dữ liệu quản lý host"),
+        );
       } finally {
         if (active) {
           setLoading(false);
@@ -234,7 +234,9 @@ export default function HostDashboardPage() {
   const filteredWorkshops = useMemo(() => {
     const keyword = workshopSearch.trim().toLocaleLowerCase("vi-VN");
 
-    if (!keyword) return workshops;
+    if (!keyword) {
+      return workshops;
+    }
 
     return workshops.filter((workshop) =>
       workshop.title.toLocaleLowerCase("vi-VN").includes(keyword),
@@ -244,54 +246,93 @@ export default function HostDashboardPage() {
   const filteredBookings = useMemo(() => {
     const keyword = bookingSearch.trim().toLocaleLowerCase("vi-VN");
 
-    if (!keyword) return bookings;
+    if (!keyword) {
+      return bookings;
+    }
 
-    return bookings.filter((booking) => {
-      return [
+    return bookings.filter((booking) =>
+      [
         booking.bookingCode,
         booking.attendeeName,
         booking.attendeeEmail,
         booking.workshopTitle,
-      ].some((value) => value.toLocaleLowerCase("vi-VN").includes(keyword));
-    });
+      ].some((value) => value.toLocaleLowerCase("vi-VN").includes(keyword)),
+    );
   }, [bookings, bookingSearch]);
 
   const handleCheckIn = async () => {
-    const normalizedCode = ticketCode.trim();
+    const qrContent = ticketCode.trim();
 
-    if (!normalizedCode || checkInLoading) return;
+    if (!qrContent || checkInLoading) {
+      return;
+    }
 
     try {
       setCheckInLoading(true);
 
-      const result = await hostService.checkIn(normalizedCode);
+      const result = await bookingService.checkInBooking({
+        qrContent,
+      });
 
-      setLastCheckIn(result.booking);
+      const checkedInBooking = result.booking;
+
+      const workshop =
+        typeof checkedInBooking.workshop === "string"
+          ? null
+          : checkedInBooking.workshop;
+
+      const nextRow: HostBookingRow = {
+        _id: checkedInBooking._id,
+        bookingCode: checkedInBooking.bookingCode,
+        attendeeName: checkedInBooking.attendeeName,
+        attendeeEmail: checkedInBooking.attendeeEmail,
+        workshopTitle: workshop?.title ?? "Workshop",
+        sessionLabel: checkedInBooking.sessionLabel,
+        quantity: checkedInBooking.quantity,
+        grossAmount: checkedInBooking.grossAmount,
+        paymentStatus: checkedInBooking.paymentStatus,
+        status: checkedInBooking.status,
+        createdAt: checkedInBooking.createdAt,
+        checkedInAt: checkedInBooking.checkedInAt,
+      };
+
+      setLastCheckIn(nextRow);
       setTicketCode("");
 
       setBookings((current) =>
         current.map((booking) =>
-          booking._id === result.booking._id ? result.booking : booking,
+          booking._id === nextRow._id ? nextRow : booking,
         ),
       );
+
+      if (!result.alreadyCheckedIn) {
+        setSummary((current) => ({
+          ...current,
+          bookings: {
+            ...current.bookings,
+            confirmed: Math.max(0, current.bookings.confirmed - 1),
+            checkedIn: current.bookings.checkedIn + 1,
+          },
+        }));
+      }
 
       toast.success(result.message);
     } catch (error) {
       console.error("Check-in error:", error);
 
-      const message = axios.isAxiosError(error)
-        ? error.response?.data?.message
-        : undefined;
-
-      toast.error(message ?? "Không thể check-in vé này");
+      toast.error(getApiErrorMessage(error, "Không thể check-in vé này"));
     } finally {
       setCheckInLoading(false);
     }
   };
 
-  const handleBuyPromotion = async () => {
-    if (!promotionWorkshopId || !promotionPackageCode || !promotionStartAt) {
-      toast.error("Vui lòng chọn workshop, gói và ngày bắt đầu");
+  const handleCreatePromotion = async () => {
+    if (
+      !promotionWorkshopId ||
+      !promotionPackageCode ||
+      !promotionStartAt ||
+      promotionLoading
+    ) {
       return;
     }
 
@@ -304,22 +345,14 @@ export default function HostDashboardPage() {
         startAt: promotionStartAt,
       });
 
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-        return;
-      }
-
       setCampaigns((current) => [result.campaign, ...current]);
-
       toast.success(result.message);
     } catch (error) {
-      console.error("Create promotion error:", error);
+      console.error("Create promotion campaign error:", error);
 
-      const message = axios.isAxiosError(error)
-        ? error.response?.data?.message
-        : undefined;
-
-      toast.error(message ?? "Không thể tạo chiến dịch nổi bật");
+      toast.error(
+        getApiErrorMessage(error, "Không thể tạo chiến dịch quảng bá"),
+      );
     } finally {
       setPromotionLoading(false);
     }
@@ -339,7 +372,7 @@ export default function HostDashboardPage() {
             </h1>
 
             <p className="mt-2 text-sm text-[#697a70]">
-              Theo dõi đặt chỗ, check-in, doanh thu và chiến dịch nổi bật.
+              Theo dõi workshop, đặt chỗ và check-in khách tham dự.
             </p>
           </div>
 
@@ -355,7 +388,7 @@ export default function HostDashboardPage() {
 
         <div className="mt-5 overflow-x-auto rounded-2xl border border-[#e0e7df] bg-white p-2">
           <div className="flex min-w-max gap-1">
-            {tabs.map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
@@ -411,10 +444,6 @@ export default function HostDashboardPage() {
               />
             )}
 
-            {activeTab === "revenue" && (
-              <RevenueTab summary={summary} transactions={transactions} />
-            )}
-
             {activeTab === "promotions" && (
               <PromotionsTab
                 workshops={workshops}
@@ -427,7 +456,7 @@ export default function HostDashboardPage() {
                 onWorkshopChange={setPromotionWorkshopId}
                 onPackageChange={setPromotionPackageCode}
                 onStartAtChange={setPromotionStartAt}
-                onBuy={handleBuyPromotion}
+                onCreate={handleCreatePromotion}
               />
             )}
           </div>
@@ -448,7 +477,7 @@ function OverviewTab({ summary }: { summary: HostDashboardSummary }) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={<CircleDollarSign />}
-          label="Doanh thu gộp"
+          label="Doanh thu đã thu"
           value={formatMoney(summary.revenue.gross)}
           helper={`Thực nhận ${formatMoney(summary.revenue.net)}`}
         />
@@ -464,30 +493,24 @@ function OverviewTab({ summary }: { summary: HostDashboardSummary }) {
           icon={<BadgeCheck />}
           label="Đã check-in"
           value={String(summary.bookings.checkedIn)}
-          helper={`${summary.bookings.noShow} no-show`}
+          helper={`${summary.bookings.noShow} vắng mặt`}
         />
 
         <StatCard
-          icon={<Megaphone />}
-          label="Quảng cáo đang chạy"
-          value={String(summary.promotion.activeCampaigns)}
-          helper={`${summary.promotion.clicks} lượt nhấp`}
+          icon={<CalendarDays />}
+          label="Workshop đang mở"
+          value={String(summary.workshops.published)}
+          helper={`${summary.workshops.upcomingSessions} lịch sắp tới`}
         />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="rounded-3xl border border-[#e0e7df] bg-white p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold">Doanh thu theo kỳ</h2>
+          <h2 className="text-xl font-bold">Doanh thu theo tháng</h2>
 
-              <p className="mt-1 text-sm text-[#718078]">
-                So sánh doanh thu gộp và thực nhận.
-              </p>
-            </div>
-
-            <Banknote className="size-6 text-[#214c36]" />
-          </div>
+          <p className="mt-1 text-sm text-[#718078]">
+            Chỉ tính những booking đã thanh toán.
+          </p>
 
           <div className="mt-8 flex min-h-64 items-end gap-3 overflow-x-auto">
             {summary.revenueSeries.map((item) => (
@@ -534,21 +557,21 @@ function OverviewTab({ summary }: { summary: HostDashboardSummary }) {
           <AlertCard
             title="Buổi chưa có khách"
             value={summary.workshops.emptySessions}
-            description="Nên cân nhắc quảng cáo, đổi lịch hoặc gửi ưu đãi."
+            description="Các lịch sắp tới chưa có booking."
             tone="danger"
           />
 
           <AlertCard
             title="Buổi lấp đầy thấp"
             value={summary.workshops.lowFillSessions}
-            description="Các buổi có tỷ lệ đặt chỗ dưới ngưỡng cảnh báo."
+            description="Các lịch có tỷ lệ đặt chỗ dưới 30%."
             tone="warning"
           />
 
           <AlertCard
             title="Tiền chờ đối soát"
             value={formatMoney(summary.revenue.pendingPayout)}
-            description="Doanh thu đã thu nhưng chưa chuyển cho host."
+            description="Tiền đã thu nhưng chưa thanh toán cho host."
             tone="normal"
           />
         </div>
@@ -557,6 +580,15 @@ function OverviewTab({ summary }: { summary: HostDashboardSummary }) {
   );
 }
 
+type WorkshopsTabProps = {
+  workshops: HostWorkshopRow[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  onCreate: () => void;
+  onView: (id: string) => void;
+  onEdit: (id: string) => void;
+};
+
 function WorkshopsTab({
   workshops,
   search,
@@ -564,14 +596,7 @@ function WorkshopsTab({
   onCreate,
   onView,
   onEdit,
-}: {
-  workshops: HostWorkshopRow[];
-  search: string;
-  onSearchChange: (value: string) => void;
-  onCreate: () => void;
-  onView: (id: string) => void;
-  onEdit: (id: string) => void;
-}) {
+}: WorkshopsTabProps) {
   return (
     <section className="rounded-3xl border border-[#e0e7df] bg-white">
       <div className="flex flex-col gap-4 border-b border-[#e7ece6] p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -579,7 +604,7 @@ function WorkshopsTab({
           <h2 className="text-xl font-bold">Danh sách workshop</h2>
 
           <p className="mt-1 text-sm text-[#718078]">
-            Theo dõi trạng thái, lịch gần nhất và tỷ lệ lấp đầy.
+            Theo dõi lịch, sức chứa và doanh thu.
           </p>
         </div>
 
@@ -617,89 +642,84 @@ function WorkshopsTab({
           </thead>
 
           <tbody className="divide-y divide-[#edf0ec]">
-            {workshops.map((workshop) => {
-              const session = workshop.nextSession;
+            {workshops.map((workshop) => (
+              <tr key={workshop._id}>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={
+                        workshop.thumbnail?.url ?? "/placeholderWorkshop.jpg"
+                      }
+                      alt={workshop.title}
+                      className="size-12 rounded-xl object-cover"
+                    />
 
-              const remaining = session
-                ? Math.max(0, session.capacity - session.bookedCount)
-                : 0;
+                    <div>
+                      <p className="font-semibold text-[#263c30]">
+                        {workshop.title}
+                      </p>
 
-              return (
-                <tr key={workshop._id}>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={
-                          workshop.thumbnail?.url ?? "/placeholderWorkshop.jpg"
-                        }
-                        alt={workshop.title}
-                        className="size-12 rounded-xl object-cover"
-                      />
-
-                      <div>
-                        <p className="font-semibold text-[#263c30]">
-                          {workshop.title}
-                        </p>
-                        <p className="mt-1 text-xs text-[#718078]">
-                          {workshop.category}
-                        </p>
-                      </div>
+                      <p className="mt-1 text-xs text-[#718078]">
+                        {workshop.categories.join(", ")}
+                      </p>
                     </div>
-                  </td>
+                  </div>
+                </td>
 
-                  <td className="px-5 py-4">
-                    <StatusBadge value={workshop.status} />
-                  </td>
+                <td className="px-5 py-4">
+                  <StatusBadge value={workshop.status} />
+                </td>
 
-                  <td className="px-5 py-4">
-                    {session ? (
-                      <>
-                        <p>{formatDateTime(session.startsAt)}</p>
-                        <p className="mt-1 text-xs text-[#718078]">
-                          Còn {remaining} chỗ
-                        </p>
-                      </>
-                    ) : (
-                      <span className="text-[#718078]">Chưa có lịch</span>
-                    )}
-                  </td>
+                <td className="px-5 py-4">
+                  {workshop.nextSession ? (
+                    <>
+                      <p>{formatDateTime(workshop.nextSession.startAt)}</p>
 
-                  <td className="px-5 py-4">
-                    <Occupancy value={workshop.occupancyRate} />
-                  </td>
+                      <p className="mt-1 text-xs text-[#718078]">
+                        Còn {workshop.nextSession.spotsLeft} /{" "}
+                        {workshop.nextSession.seatsTotal} chỗ
+                      </p>
+                    </>
+                  ) : (
+                    <span className="text-[#718078]">Chưa có lịch</span>
+                  )}
+                </td>
 
-                  <td className="px-5 py-4 font-semibold">
-                    {workshop.totalBookings}
-                  </td>
+                <td className="px-5 py-4">
+                  <Occupancy value={workshop.occupancyRate} />
+                </td>
 
-                  <td className="px-5 py-4 font-semibold">
-                    {formatMoney(workshop.totalRevenue)}
-                  </td>
+                <td className="px-5 py-4 font-semibold">
+                  {workshop.totalBookings}
+                </td>
 
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onView(workshop._id)}
-                        className="rounded-lg border p-2 hover:bg-[#f1f5ef]"
-                        aria-label="Xem workshop"
-                      >
-                        <Eye className="size-4" />
-                      </button>
+                <td className="px-5 py-4 font-semibold">
+                  {formatMoney(workshop.totalRevenue)}
+                </td>
 
-                      <button
-                        type="button"
-                        onClick={() => onEdit(workshop._id)}
-                        className="rounded-lg border p-2 hover:bg-[#f1f5ef]"
-                        aria-label="Chỉnh sửa workshop"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                <td className="px-5 py-4">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onView(workshop._id)}
+                      className="rounded-lg border p-2 hover:bg-[#f1f5ef]"
+                      aria-label="Xem workshop"
+                    >
+                      <Eye className="size-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onEdit(workshop._id)}
+                      className="rounded-lg border p-2 hover:bg-[#f1f5ef]"
+                      aria-label="Chỉnh sửa workshop"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
 
             {!workshops.length && (
               <tr>
@@ -718,15 +738,13 @@ function WorkshopsTab({
   );
 }
 
-function BookingsTab({
-  bookings,
-  search,
-  onSearchChange,
-}: {
+type BookingsTabProps = {
   bookings: HostBookingRow[];
   search: string;
   onSearchChange: (value: string) => void;
-}) {
+};
+
+function BookingsTab({ bookings, search, onSearchChange }: BookingsTabProps) {
   return (
     <section className="rounded-3xl border border-[#e0e7df] bg-white">
       <div className="flex flex-col gap-4 border-b border-[#e7ece6] p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -734,7 +752,7 @@ function BookingsTab({
           <h2 className="text-xl font-bold">Đơn đặt chỗ</h2>
 
           <p className="mt-1 text-sm text-[#718078]">
-            Theo dõi thanh toán, trạng thái tham dự và số lượng khách.
+            Theo dõi thanh toán và trạng thái tham dự.
           </p>
         </div>
 
@@ -774,6 +792,7 @@ function BookingsTab({
 
                 <td className="px-5 py-4">
                   <p className="font-medium">{booking.attendeeName}</p>
+
                   <p className="mt-1 text-xs text-[#718078]">
                     {booking.attendeeEmail}
                   </p>
@@ -781,6 +800,7 @@ function BookingsTab({
 
                 <td className="px-5 py-4">
                   <p className="font-medium">{booking.workshopTitle}</p>
+
                   <p className="mt-1 text-xs text-[#718078]">
                     {booking.sessionLabel}
                   </p>
@@ -789,7 +809,7 @@ function BookingsTab({
                 <td className="px-5 py-4">{booking.quantity}</td>
 
                 <td className="px-5 py-4 font-semibold">
-                  {formatMoney(booking.total)}
+                  {formatMoney(booking.grossAmount)}
                 </td>
 
                 <td className="px-5 py-4">
@@ -823,19 +843,21 @@ function BookingsTab({
   );
 }
 
+type CheckInTabProps = {
+  ticketCode: string;
+  onTicketCodeChange: (value: string) => void;
+  loading: boolean;
+  lastCheckIn: HostBookingRow | null;
+  onSubmit: () => void;
+};
+
 function CheckInTab({
   ticketCode,
   onTicketCodeChange,
   loading,
   lastCheckIn,
   onSubmit,
-}: {
-  ticketCode: string;
-  onTicketCodeChange: (value: string) => void;
-  loading: boolean;
-  lastCheckIn: HostBookingRow | null;
-  onSubmit: () => void;
-}) {
+}: CheckInTabProps) {
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div className="rounded-3xl border border-[#e0e7df] bg-white p-6">
@@ -846,9 +868,7 @@ function CheckInTab({
         <h2 className="mt-5 text-2xl font-bold">Check-in khách tham dự</h2>
 
         <p className="mt-2 max-w-xl text-sm leading-6 text-[#718078]">
-          Máy quét QR chỉ cần giải mã mã vé rồi gửi chuỗi đó vào cùng API
-          check-in bên dưới. Có thể nhập mã vé thủ công khi camera không đọc
-          được.
+          Nhập mã booking hoặc dán nội dung QR có dạng WOPY_CHECKIN:BK-...
         </p>
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -884,9 +904,9 @@ function CheckInTab({
 
           <ul className="mt-3 space-y-2 text-sm text-[#66766d]">
             <li>• Vé phải thuộc workshop của host.</li>
-            <li>• Đơn phải thanh toán và được xác nhận.</li>
-            <li>• Mỗi vé chỉ check-in một lần.</li>
-            <li>• Có thể tìm khách theo mã đơn khi mất QR.</li>
+            <li>• Booking phải ở trạng thái đã xác nhận.</li>
+            <li>• Check-in sẽ xác nhận thanh toán tại địa điểm.</li>
+            <li>• Mỗi booking chỉ được check-in một lần.</li>
           </ul>
         </div>
       </div>
@@ -913,6 +933,7 @@ function CheckInTab({
         ) : (
           <div className="flex min-h-72 flex-col items-center justify-center text-center text-[#718078]">
             <QrCode className="size-12 opacity-30" />
+
             <p className="mt-3 text-sm">
               Chưa có lượt check-in nào trong phiên này.
             </p>
@@ -923,115 +944,19 @@ function CheckInTab({
   );
 }
 
-function RevenueTab({
-  summary,
-  transactions,
-}: {
-  summary: HostDashboardSummary;
-  transactions: RevenueTransaction[];
-}) {
-  return (
-    <div className="space-y-5">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={<Banknote />}
-          label="Doanh thu gộp"
-          value={formatMoney(summary.revenue.gross)}
-          helper="Tổng tiền khách đã thanh toán"
-        />
-
-        <StatCard
-          icon={<XCircle />}
-          label="Hoàn tiền"
-          value={formatMoney(summary.revenue.refunds)}
-          helper="Khoản đã hoặc đang hoàn"
-        />
-
-        <StatCard
-          icon={<CircleDollarSign />}
-          label="Phí nền tảng"
-          value={formatMoney(summary.revenue.platformFee)}
-          helper="Phí dịch vụ của nền tảng"
-        />
-
-        <StatCard
-          icon={<WalletCards />}
-          label="Thực nhận"
-          value={formatMoney(summary.revenue.net)}
-          helper={`Chờ đối soát ${formatMoney(summary.revenue.pendingPayout)}`}
-        />
-      </section>
-
-      <section className="rounded-3xl border border-[#e0e7df] bg-white">
-        <div className="border-b border-[#e7ece6] p-5">
-          <h2 className="text-xl font-bold">Giao dịch doanh thu</h2>
-
-          <p className="mt-1 text-sm text-[#718078]">
-            Phân tách tiền khách trả, hoàn tiền, phí nền tảng và số tiền host
-            nhận.
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="bg-[#f7f9f6] text-xs uppercase tracking-wide text-[#708078]">
-              <tr>
-                <th className="px-5 py-4">Đơn</th>
-                <th className="px-5 py-4">Workshop</th>
-                <th className="px-5 py-4">Thanh toán</th>
-                <th className="px-5 py-4">Gộp</th>
-                <th className="px-5 py-4">Hoàn</th>
-                <th className="px-5 py-4">Phí</th>
-                <th className="px-5 py-4">Thực nhận</th>
-                <th className="px-5 py-4">Đối soát</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-[#edf0ec]">
-              {transactions.map((transaction) => (
-                <tr key={transaction._id}>
-                  <td className="px-5 py-4 font-semibold">
-                    {transaction.bookingCode}
-                  </td>
-                  <td className="px-5 py-4">{transaction.workshopTitle}</td>
-                  <td className="px-5 py-4">
-                    {formatDateTime(transaction.paidAt)}
-                  </td>
-                  <td className="px-5 py-4">
-                    {formatMoney(transaction.gross)}
-                  </td>
-                  <td className="px-5 py-4">
-                    {formatMoney(transaction.refund)}
-                  </td>
-                  <td className="px-5 py-4">
-                    {formatMoney(transaction.platformFee)}
-                  </td>
-                  <td className="px-5 py-4 font-semibold">
-                    {formatMoney(transaction.hostNet)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={transaction.payoutStatus} />
-                  </td>
-                </tr>
-              ))}
-
-              {!transactions.length && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-5 py-16 text-center text-[#718078]"
-                  >
-                    Chưa có giao dịch doanh thu.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
-}
+type PromotionsTabProps = {
+  workshops: HostWorkshopRow[];
+  packages: PromotionPackage[];
+  campaigns: PromotionCampaign[];
+  selectedWorkshopId: string;
+  selectedPackageCode: string;
+  startAt: string;
+  loading: boolean;
+  onWorkshopChange: (value: string) => void;
+  onPackageChange: (value: string) => void;
+  onStartAtChange: (value: string) => void;
+  onCreate: () => void;
+};
 
 function PromotionsTab({
   workshops,
@@ -1044,20 +969,8 @@ function PromotionsTab({
   onWorkshopChange,
   onPackageChange,
   onStartAtChange,
-  onBuy,
-}: {
-  workshops: HostWorkshopRow[];
-  packages: PromotionPackage[];
-  campaigns: PromotionCampaign[];
-  selectedWorkshopId: string;
-  selectedPackageCode: string;
-  startAt: string;
-  loading: boolean;
-  onWorkshopChange: (value: string) => void;
-  onPackageChange: (value: string) => void;
-  onStartAtChange: (value: string) => void;
-  onBuy: () => void;
-}) {
+  onCreate,
+}: PromotionsTabProps) {
   const selectedPackage = packages.find(
     (item) => item.code === selectedPackageCode,
   );
@@ -1065,22 +978,20 @@ function PromotionsTab({
   return (
     <div className="space-y-5">
       <section className="rounded-3xl border border-[#e0e7df] bg-white p-6">
-        <div className="max-w-2xl">
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-amber-100">
-            <Megaphone className="size-7 text-amber-700" />
-          </div>
-
-          <h2 className="mt-5 text-2xl font-bold">Mua vị trí nổi bật</h2>
-
-          <p className="mt-2 text-sm leading-6 text-[#718078]">
-            Chiến dịch chỉ chạy trong khoảng thời gian đã mua. Hệ thống ghi nhận
-            lượt hiển thị, lượt nhấp và đơn đặt chỗ phát sinh từ chiến dịch.
-          </p>
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-amber-100">
+          <Megaphone className="size-7 text-amber-700" />
         </div>
+
+        <h2 className="mt-5 text-2xl font-bold">Quảng bá workshop</h2>
+
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#718078]">
+          Đây là chế độ thanh toán giả lập. Campaign được xem là đã thanh toán
+          ngay sau khi tạo và sẽ chạy theo ngày bắt đầu đã chọn.
+        </p>
 
         <div className="mt-7 grid gap-4 lg:grid-cols-3">
           {packages.map((item) => {
-            const selected = selectedPackageCode === item.code;
+            const selected = item.code === selectedPackageCode;
 
             return (
               <button
@@ -1110,6 +1021,12 @@ function PromotionsTab({
               </button>
             );
           })}
+
+          {!packages.length && (
+            <div className="col-span-full rounded-2xl border border-dashed p-8 text-center text-sm text-[#718078]">
+              Chưa có gói quảng bá. Hãy chạy script seed package ở backend.
+            </div>
+          )}
         </div>
 
         <div className="mt-7 grid gap-4 rounded-2xl bg-[#f7f9f6] p-5 md:grid-cols-3">
@@ -1120,11 +1037,15 @@ function PromotionsTab({
               onChange={(event) => onWorkshopChange(event.target.value)}
               className="mt-2 h-11 w-full rounded-xl border bg-white px-3 font-normal"
             >
-              {workshops.map((workshop) => (
-                <option key={workshop._id} value={workshop._id}>
-                  {workshop.title}
-                </option>
-              ))}
+              <option value="">Chọn workshop</option>
+
+              {workshops
+                .filter((workshop) => workshop.status === "published")
+                .map((workshop) => (
+                  <option key={workshop._id} value={workshop._id}>
+                    {workshop.title}
+                  </option>
+                ))}
             </select>
           </label>
 
@@ -1142,13 +1063,17 @@ function PromotionsTab({
           <div className="flex items-end">
             <Button
               type="button"
-              disabled={loading || !selectedPackage || !selectedWorkshopId}
-              onClick={onBuy}
+              disabled={
+                loading || !selectedPackage || !selectedWorkshopId || !startAt
+              }
+              onClick={onCreate}
               className="h-11 w-full bg-[#214c36]"
             >
               {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Mua gói{" "}
-              {selectedPackage ? formatMoney(selectedPackage.price) : ""}
+              Kích hoạt giả lập
+              {selectedPackage
+                ? ` · ${formatMoney(selectedPackage.price)}`
+                : ""}
             </Button>
           </div>
         </div>
@@ -1156,11 +1081,11 @@ function PromotionsTab({
 
       <section className="rounded-3xl border border-[#e0e7df] bg-white">
         <div className="border-b border-[#e7ece6] p-5">
-          <h2 className="text-xl font-bold">Chiến dịch quảng cáo</h2>
+          <h2 className="text-xl font-bold">Chiến dịch đã mua</h2>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-left text-sm">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="bg-[#f7f9f6] text-xs uppercase tracking-wide text-[#708078]">
               <tr>
                 <th className="px-5 py-4">Workshop</th>
@@ -1170,7 +1095,7 @@ function PromotionsTab({
                 <th className="px-5 py-4">Trạng thái</th>
                 <th className="px-5 py-4">Hiển thị</th>
                 <th className="px-5 py-4">Nhấp</th>
-                <th className="px-5 py-4">Đơn quy đổi</th>
+                <th className="px-5 py-4">Booking</th>
               </tr>
             </thead>
 
@@ -1180,28 +1105,21 @@ function PromotionsTab({
                   <td className="px-5 py-4 font-semibold">
                     {campaign.workshopTitle}
                   </td>
-
                   <td className="px-5 py-4">{campaign.packageName}</td>
-
                   <td className="px-5 py-4">
                     <p>{formatDateTime(campaign.startAt)}</p>
                     <p className="mt-1 text-xs text-[#718078]">
                       đến {formatDateTime(campaign.endAt)}
                     </p>
                   </td>
-
                   <td className="px-5 py-4 font-semibold">
                     {formatMoney(campaign.price)}
                   </td>
-
                   <td className="px-5 py-4">
                     <StatusBadge value={campaign.status} />
                   </td>
-
                   <td className="px-5 py-4">{campaign.impressions}</td>
-
                   <td className="px-5 py-4">{campaign.clicks}</td>
-
                   <td className="px-5 py-4">{campaign.attributedBookings}</td>
                 </tr>
               ))}
@@ -1212,7 +1130,7 @@ function PromotionsTab({
                     colSpan={8}
                     className="px-5 py-16 text-center text-[#718078]"
                   >
-                    Chưa có chiến dịch quảng cáo.
+                    Chưa có chiến dịch quảng bá.
                   </td>
                 </tr>
               )}
@@ -1224,17 +1142,14 @@ function PromotionsTab({
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  helper,
-}: {
-  icon: React.ReactNode;
+type StatCardProps = {
+  icon: ReactNode;
   label: string;
   value: string;
   helper: string;
-}) {
+};
+
+function StatCard({ icon, label, value, helper }: StatCardProps) {
   return (
     <article className="rounded-3xl border border-[#e0e7df] bg-white p-5 shadow-sm">
       <div className="flex size-11 items-center justify-center rounded-2xl bg-[#edf4e9] text-[#214c36]">
@@ -1250,17 +1165,14 @@ function StatCard({
   );
 }
 
-function AlertCard({
-  title,
-  value,
-  description,
-  tone,
-}: {
+type AlertCardProps = {
   title: string;
   value: number | string;
   description: string;
   tone: "danger" | "warning" | "normal";
-}) {
+};
+
+function AlertCard({ title, value, description, tone }: AlertCardProps) {
   const toneClass = {
     danger: "bg-red-50 text-red-700",
     warning: "bg-amber-50 text-amber-700",
@@ -1285,13 +1197,11 @@ function AlertCard({
 }
 
 function Occupancy({ value }: { value: number }) {
-  const normalized = Math.min(100, Math.max(0, value));
+  const normalized = Math.min(100, Math.max(0, Math.round(value)));
 
   return (
     <div className="w-28">
-      <div className="flex justify-between text-xs">
-        <span>{normalized}%</span>
-      </div>
+      <span className="text-xs">{normalized}%</span>
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8ede8]">
         <div
@@ -1303,7 +1213,9 @@ function Occupancy({ value }: { value: number }) {
                 ? "bg-amber-400"
                 : "bg-[#214c36]",
           ].join(" ")}
-          style={{ width: `${normalized}%` }}
+          style={{
+            width: `${normalized}%`,
+          }}
         />
       </div>
     </div>
@@ -1313,9 +1225,8 @@ function Occupancy({ value }: { value: number }) {
 function StatusBadge({ value }: { value: string }) {
   const labels: Record<string, string> = {
     draft: "Bản nháp",
-    pending_review: "Chờ duyệt",
     published: "Đang mở bán",
-    paused: "Tạm dừng",
+    archived: "Đã lưu trữ",
     completed: "Hoàn tất",
     cancelled: "Đã hủy",
     pending_payment: "Chờ thanh toán",
@@ -1332,24 +1243,19 @@ function StatusBadge({ value }: { value: string }) {
     held: "Tạm giữ",
     scheduled: "Đã lên lịch",
     active: "Đang chạy",
-    rejected: "Bị từ chối",
   };
 
   const className =
     value === "published" ||
     value === "paid" ||
     value === "checked_in" ||
-    value === "active" ||
-    value === "available"
+    value === "available" ||
+    value === "active"
       ? "bg-emerald-100 text-emerald-700"
-      : value === "cancelled" ||
-          value === "failed" ||
-          value === "rejected" ||
-          value === "no_show"
+      : value === "cancelled" || value === "failed" || value === "no_show"
         ? "bg-red-100 text-red-700"
         : value === "pending" ||
             value === "pending_payment" ||
-            value === "pending_review" ||
             value === "scheduled"
           ? "bg-amber-100 text-amber-700"
           : "bg-slate-100 text-slate-700";

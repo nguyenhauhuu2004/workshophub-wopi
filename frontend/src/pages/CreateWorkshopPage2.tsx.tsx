@@ -39,23 +39,15 @@ import LocationPicker from "@/components/LocationPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CATEGORIES } from "@/data";
-import { workshopService } from "@/services/workshopService";
+import { useWorkshopStore } from "@/stores/useWorkshopStore";
+import type {
+  WorkshopFormData,
+  WorkshopLocationForm,
+  WorkshopSchedule,
+} from "@/types/workshop";
 
-export type WorkshopLocation = {
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
-  placeId?: string;
-  notes: string;
-};
-
-type WorkshopLevel = "Beginner" | "Intermediate" | "Advanced" | "All Levels";
-
-type ScheduleFormItem = {
+type ScheduleFormItem = WorkshopSchedule & {
   id: string;
-  date: string;
-  time: string;
-  spotsLeft: number;
 };
 
 type LocalMedia = {
@@ -64,21 +56,15 @@ type LocalMedia = {
   previewUrl: string;
 };
 
-type WorkshopFormState = {
-  title: string;
-  category: string;
-  description: string;
-  highlights: string[];
-  includes: string[];
-  price: string;
-  duration: string;
-  seats: string;
-  level: WorkshopLevel;
+type WorkshopFormState = Omit<
+  WorkshopFormData,
+  "thumbnail" | "gallery" | "video" | "schedules" | "location"
+> & {
   thumbnail: LocalMedia | null;
   gallery: LocalMedia[];
   video: LocalMedia | null;
   schedules: ScheduleFormItem[];
-  location: WorkshopLocation;
+  location: WorkshopLocationForm;
 };
 
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -88,13 +74,6 @@ type StepDefinition = {
   shortTitle: string;
   description: string;
   icon: ReactNode;
-};
-
-type CreateWorkshopResponse = {
-  _id?: string;
-  workshop?: {
-    _id?: string;
-  };
 };
 
 const STEPS: StepDefinition[] = [
@@ -107,7 +86,7 @@ const STEPS: StepDefinition[] = [
   {
     title: "Nội dung & học phí",
     shortTitle: "Nội dung",
-    description: "Quyền lợi, thời lượng, số chỗ và mức độ.",
+    description: "Quyền lợi, thời lượng và học phí workshop.",
     icon: <BookOpen className="size-4" />,
   },
   {
@@ -130,33 +109,6 @@ const STEPS: StepDefinition[] = [
   },
 ];
 
-const LEVEL_OPTIONS: Array<{
-  label: string;
-  value: WorkshopLevel;
-  description: string;
-}> = [
-  {
-    label: "Người mới",
-    value: "Beginner",
-    description: "Không cần kinh nghiệm trước đó.",
-  },
-  {
-    label: "Trung cấp",
-    value: "Intermediate",
-    description: "Đã có kiến thức hoặc trải nghiệm cơ bản.",
-  },
-  {
-    label: "Nâng cao",
-    value: "Advanced",
-    description: "Dành cho người đã có nền tảng tốt.",
-  },
-  {
-    label: "Mọi cấp độ",
-    value: "All Levels",
-    description: "Nội dung phù hợp với nhiều trình độ.",
-  },
-];
-
 const MAX_GALLERY_FILES = 8;
 
 const createId = () => {
@@ -167,11 +119,11 @@ const createId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const createSchedule = (spotsLeft = 0): ScheduleFormItem => ({
+const createSchedule = (): ScheduleFormItem => ({
   id: createId(),
-  date: "",
-  time: "10:00",
-  spotsLeft,
+  startAt: "",
+  seatsTotal: 1,
+  spotsLeft: 1,
 });
 
 const createLocalMedia = (file: File): LocalMedia => ({
@@ -202,37 +154,37 @@ const getFileKey = (file: File) =>
 
 const initialFormState: WorkshopFormState = {
   title: "",
-  category: CATEGORIES[0]?.name ?? "Khác",
+  categories: CATEGORIES[0]?.name ? [CATEGORIES[0].name] : [],
   description: "",
   highlights: [""],
   includes: [""],
   price: "",
   duration: "",
-  seats: "",
-  level: "Beginner",
   thumbnail: null,
   gallery: [],
   video: null,
   schedules: [createSchedule()],
   location: {
     address: "",
-    latitude: null,
-    longitude: null,
     placeId: "",
     notes: "",
+    coordinates: {
+      type: "Point",
+      coordinates: [null, null],
+    },
   },
+  status: "published",
 };
 
 export function CreateWorkshopPage() {
-  //   const navigate = useNavigate();
-
   const [step, setStep] = useState<Step>(0);
   const [highestVisitedStep, setHighestVisitedStep] = useState<Step>(0);
-  const [saving, setSaving] = useState(false);
   const [createdWorkshopId, setCreatedWorkshopId] = useState<string | null>(
     null,
   );
   const [form, setForm] = useState<WorkshopFormState>(initialFormState);
+  const createWorkshop = useWorkshopStore((state) => state.createWorkshop);
+  const saving = useWorkshopStore((state) => state.isSubmitting);
 
   const mediaSnapshotRef = useRef({
     thumbnail: form.thumbnail,
@@ -269,15 +221,15 @@ export function CreateWorkshopPage() {
   const completedFields = useMemo(() => {
     const checks = [
       Boolean(form.title.trim()),
+      form.categories.length > 0,
       Boolean(form.description.trim()),
       Boolean(form.thumbnail),
       Number(form.price) >= 0 && form.price !== "",
       Boolean(form.duration.trim()),
-      Number(form.seats) >= 1,
-      form.schedules.some((item) => item.date && item.time),
+      form.schedules.some((item) => Boolean(item.startAt)),
       Boolean(form.location.address),
-      form.location.latitude !== null,
-      form.location.longitude !== null,
+      form.location.coordinates.coordinates[0] !== null,
+      form.location.coordinates.coordinates[1] !== null,
     ];
 
     return checks.filter(Boolean).length;
@@ -350,10 +302,7 @@ export function CreateWorkshopPage() {
   const addSchedule = () => {
     setForm((current) => ({
       ...current,
-      schedules: [
-        ...current.schedules,
-        createSchedule(Number(current.seats) || 0),
-      ],
+      schedules: [...current.schedules, createSchedule()],
     }));
   };
 
@@ -365,9 +314,7 @@ export function CreateWorkshopPage() {
 
       return {
         ...current,
-        schedules: schedules.length
-          ? schedules
-          : [createSchedule(Number(current.seats) || 0)],
+        schedules: schedules.length ? schedules : [createSchedule()],
       };
     });
   };
@@ -456,7 +403,7 @@ export function CreateWorkshopPage() {
         return fail("Tên workshop phải có ít nhất 5 ký tự");
       }
 
-      if (!form.category) {
+      if (!form.categories.length) {
         return fail("Vui lòng chọn danh mục workshop");
       }
 
@@ -471,7 +418,6 @@ export function CreateWorkshopPage() {
 
     if (stepToValidate === 1) {
       const price = Number(form.price);
-      const seats = Number(form.seats);
 
       if (!Number.isFinite(price) || price < 0) {
         return fail("Học phí workshop không hợp lệ");
@@ -480,15 +426,11 @@ export function CreateWorkshopPage() {
       if (!form.duration.trim()) {
         return fail("Vui lòng nhập thời lượng workshop");
       }
-
-      if (!Number.isInteger(seats) || seats < 1) {
-        return fail("Số lượng học viên phải là số nguyên lớn hơn 0");
-      }
     }
 
     if (stepToValidate === 2) {
       const validSchedules = form.schedules.filter(
-        (schedule) => schedule.date && schedule.time,
+        (schedule) => schedule.startAt,
       );
 
       if (!validSchedules.length) {
@@ -498,19 +440,25 @@ export function CreateWorkshopPage() {
       if (
         validSchedules.some(
           (schedule) =>
+            Number.isNaN(new Date(schedule.startAt).getTime()) ||
+            !Number.isInteger(Number(schedule.seatsTotal)) ||
+            Number(schedule.seatsTotal) < 1 ||
             !Number.isInteger(Number(schedule.spotsLeft)) ||
-            Number(schedule.spotsLeft) < 1,
+            Number(schedule.spotsLeft) < 0 ||
+            Number(schedule.spotsLeft) > Number(schedule.seatsTotal),
         )
       ) {
-        return fail("Số chỗ của mỗi lịch phải lớn hơn 0");
+        return fail("Số chỗ của lịch tổ chức không hợp lệ");
       }
     }
 
     if (stepToValidate === 3) {
+      const [longitude, latitude] = form.location.coordinates.coordinates;
+
       if (
         !form.location.address.trim() ||
-        form.location.latitude === null ||
-        form.location.longitude === null
+        longitude === null ||
+        latitude === null
       ) {
         return fail("Vui lòng chọn địa điểm chính xác trên bản đồ");
       }
@@ -569,75 +517,45 @@ export function CreateWorkshopPage() {
     }
 
     try {
-      setSaving(true);
+      const [longitude, latitude] = form.location.coordinates.coordinates;
 
-      const payload = new FormData();
+      if (longitude === null || latitude === null) {
+        return;
+      }
 
-      payload.append("title", form.title.trim());
-      payload.append("category", form.category);
-      payload.append("description", form.description.trim());
-      payload.append("price", String(Number(form.price)));
-      payload.append("duration", form.duration.trim());
-      payload.append("seatsTotal", String(Number(form.seats)));
-      payload.append("level", form.level);
-      payload.append("status", "published");
-
-      payload.append(
-        "highlights",
-        JSON.stringify(
-          form.highlights.map((item) => item.trim()).filter(Boolean),
-        ),
-      );
-
-      payload.append(
-        "includes",
-        JSON.stringify(
-          form.includes.map((item) => item.trim()).filter(Boolean),
-        ),
-      );
-
-      payload.append(
-        "schedules",
-        JSON.stringify(
-          form.schedules
-            .filter((schedule) => schedule.date && schedule.time)
-            .map(({ id: _id, ...schedule }) => ({
-              ...schedule,
-              spotsLeft: Number(schedule.spotsLeft) || Number(form.seats),
-            })),
-        ),
-      );
-
-      payload.append(
-        "location",
-        JSON.stringify({
+      const payload: WorkshopFormData = {
+        title: form.title.trim(),
+        categories: form.categories,
+        description: form.description.trim(),
+        highlights: form.highlights.map((item) => item.trim()).filter(Boolean),
+        includes: form.includes.map((item) => item.trim()).filter(Boolean),
+        price: String(Number(form.price)),
+        duration: form.duration.trim(),
+        thumbnail: form.thumbnail.file,
+        gallery: form.gallery.map((item) => item.file),
+        video: form.video?.file ?? null,
+        schedules: form.schedules
+          .filter((schedule) => schedule.startAt)
+          .map((schedule) => ({
+            startAt: new Date(schedule.startAt).toISOString(),
+            seatsTotal: Number(schedule.seatsTotal),
+            spotsLeft: Number(schedule.spotsLeft),
+          })),
+        location: {
           address: form.location.address.trim(),
-          placeId: form.location.placeId ?? "",
+          placeId: form.location.placeId,
           notes: form.location.notes.trim(),
           coordinates: {
             type: "Point",
-            coordinates: [form.location.longitude, form.location.latitude],
+            coordinates: [longitude, latitude],
           },
-        }),
-      );
+        },
+        status: "published",
+      };
 
-      payload.append("thumbnail", form.thumbnail.file);
+      const workshop = await createWorkshop(payload);
 
-      form.gallery.forEach((item) => {
-        payload.append("gallery", item.file);
-      });
-
-      if (form.video) {
-        payload.append("video", form.video.file);
-      }
-
-      const result = (await workshopService.createWorkshop(
-        payload,
-      )) as CreateWorkshopResponse;
-
-      const newWorkshopId = result.workshop?._id ?? result._id ?? null;
-
-      setCreatedWorkshopId(newWorkshopId);
+      setCreatedWorkshopId(workshop._id);
       toast.success("Đăng workshop thành công");
     } catch (error) {
       console.error("Create workshop error:", error);
@@ -648,8 +566,6 @@ export function CreateWorkshopPage() {
           : "Không thể tạo workshop. Vui lòng thử lại.";
 
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -868,7 +784,6 @@ export function CreateWorkshopPage() {
                   {step === 2 && (
                     <ScheduleStep
                       schedules={form.schedules}
-                      seats={form.seats}
                       updateSchedule={updateSchedule}
                       addSchedule={addSchedule}
                       removeSchedule={removeSchedule}
@@ -994,13 +909,22 @@ function BasicInformationStep({
         >
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {CATEGORIES.map((category) => {
-              const selected = form.category === category.name;
+              const selected = form.categories.includes(category.name);
 
               return (
                 <button
                   key={category.name}
                   type="button"
-                  onClick={() => setField("category", category.name)}
+                  onClick={() =>
+                    setField(
+                      "categories",
+                      selected
+                        ? form.categories.filter(
+                            (item) => item !== category.name,
+                          )
+                        : [...form.categories, category.name],
+                    )
+                  }
                   className={`rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${
                     selected
                       ? "border-[#315d43] bg-[#edf4e9] text-[#214c36] shadow-sm"
@@ -1116,7 +1040,7 @@ function WorkshopDetailsStep({
 }: WorkshopDetailsStepProps) {
   return (
     <div className="space-y-8">
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2">
         <FormField
           label="Học phí mỗi người"
           description="Nhập 0 nếu workshop miễn phí."
@@ -1154,69 +1078,7 @@ function WorkshopDetailsStep({
             />
           </div>
         </FormField>
-
-        <FormField
-          label="Số học viên tối đa"
-          description="Tổng số chỗ của workshop."
-          required
-        >
-          <div className="relative">
-            <Users className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#849087]" />
-            <Input
-              type="number"
-              min={1}
-              value={form.seats}
-              onChange={(event) => setField("seats", event.target.value)}
-              placeholder="12"
-              className="h-12 rounded-xl border-[#dfe5dd] pl-10"
-            />
-          </div>
-        </FormField>
       </div>
-
-      <FormField
-        label="Mức độ phù hợp"
-        description="Giúp người tham gia chọn workshop phù hợp với kinh nghiệm."
-        required
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          {LEVEL_OPTIONS.map((option) => {
-            const selected = form.level === option.value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setField("level", option.value)}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  selected
-                    ? "border-[#315d43] bg-[#edf4e9] shadow-sm"
-                    : "border-[#e1e6df] hover:border-[#aebcaf] hover:bg-[#f8faf7]"
-                }`}
-              >
-                <span className="flex items-center justify-between gap-3">
-                  <span className="font-bold text-[#294936]">
-                    {option.label}
-                  </span>
-                  <span
-                    className={`flex size-5 items-center justify-center rounded-full border ${
-                      selected
-                        ? "border-[#315d43] bg-[#315d43] text-white"
-                        : "border-[#cdd5cf]"
-                    }`}
-                  >
-                    {selected && <Check className="size-3" />}
-                  </span>
-                </span>
-
-                <span className="mt-2 block text-sm leading-5 text-[#7b877f]">
-                  {option.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </FormField>
 
       <DynamicTextList
         title="Workshop bao gồm"
@@ -1233,7 +1095,6 @@ function WorkshopDetailsStep({
 
 type ScheduleStepProps = {
   schedules: ScheduleFormItem[];
-  seats: string;
   updateSchedule: <K extends keyof ScheduleFormItem>(
     scheduleId: string,
     key: K,
@@ -1245,7 +1106,6 @@ type ScheduleStepProps = {
 
 function ScheduleStep({
   schedules,
-  seats,
   updateSchedule,
   addSchedule,
   removeSchedule,
@@ -1262,8 +1122,8 @@ function ScheduleStep({
               Có thể thêm nhiều buổi tổ chức
             </p>
             <p className="mt-1 text-sm leading-6 text-[#718078]">
-              Mỗi lịch có ngày, giờ và số chỗ riêng. Số chỗ mặc định lấy từ tổng
-              số học viên của workshop.
+              Mỗi lịch có thời gian bắt đầu, tổng số chỗ và số chỗ còn lại
+              riêng.
             </p>
           </div>
         </div>
@@ -1300,15 +1160,22 @@ function ScheduleStep({
               </button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <FormField label="Ngày tổ chức" required>
                 <Input
                   type="date"
                   min={today}
-                  value={schedule.date}
-                  onChange={(event) =>
-                    updateSchedule(schedule.id, "date", event.target.value)
-                  }
+                  value={schedule.startAt.split("T")[0] ?? ""}
+                  onChange={(event) => {
+                    const time =
+                      schedule.startAt.split("T")[1]?.slice(0, 5) || "10:00";
+
+                    updateSchedule(
+                      schedule.id,
+                      "startAt",
+                      `${event.target.value}T${time}`,
+                    );
+                  }}
                   className="h-12 rounded-xl border-[#dfe5dd]"
                 />
               </FormField>
@@ -1316,20 +1183,45 @@ function ScheduleStep({
               <FormField label="Giờ bắt đầu" required>
                 <Input
                   type="time"
-                  value={schedule.time}
-                  onChange={(event) =>
-                    updateSchedule(schedule.id, "time", event.target.value)
-                  }
+                  value={schedule.startAt.split("T")[1]?.slice(0, 5) || "10:00"}
+                  onChange={(event) => {
+                    const date = schedule.startAt.split("T")[0] ?? "";
+
+                    updateSchedule(
+                      schedule.id,
+                      "startAt",
+                      date ? `${date}T${event.target.value}` : "",
+                    );
+                  }}
                   className="h-12 rounded-xl border-[#dfe5dd]"
                 />
               </FormField>
 
-              <FormField label="Số chỗ" required>
+              <FormField label="Tổng số chỗ" required>
                 <Input
                   type="number"
                   min={1}
-                  max={Number(seats) || undefined}
-                  value={schedule.spotsLeft || ""}
+                  value={schedule.seatsTotal}
+                  onChange={(event) => {
+                    const seatsTotal = Number(event.target.value);
+
+                    updateSchedule(schedule.id, "seatsTotal", seatsTotal);
+
+                    if (schedule.spotsLeft > seatsTotal) {
+                      updateSchedule(schedule.id, "spotsLeft", seatsTotal);
+                    }
+                  }}
+                  placeholder="12"
+                  className="h-12 rounded-xl border-[#dfe5dd]"
+                />
+              </FormField>
+
+              <FormField label="Số chỗ còn lại" required>
+                <Input
+                  type="number"
+                  min={0}
+                  max={schedule.seatsTotal}
+                  value={schedule.spotsLeft}
                   onChange={(event) =>
                     updateSchedule(
                       schedule.id,
@@ -1337,7 +1229,7 @@ function ScheduleStep({
                       Number(event.target.value),
                     )
                   }
-                  placeholder={seats || "12"}
+                  placeholder="12"
                   className="h-12 rounded-xl border-[#dfe5dd]"
                 />
               </FormField>
@@ -1359,8 +1251,8 @@ function ScheduleStep({
 }
 
 type LocationStepProps = {
-  location: WorkshopLocation;
-  onChange: (location: WorkshopLocation) => void;
+  location: WorkshopLocationForm;
+  onChange: (location: WorkshopLocationForm) => void;
 };
 
 function LocationStep({ location, onChange }: LocationStepProps) {
@@ -1369,10 +1261,12 @@ function LocationStep({ location, onChange }: LocationStepProps) {
       <div className="rounded-2xl border border-[#f0e1c9] bg-[#fff9ef] p-4">
         <div className="flex items-start gap-3">
           <MapPin className="mt-0.5 size-5 shrink-0 text-[#9a6c2f]" />
+
           <div>
             <p className="text-sm font-bold text-[#76552b]">
               Chọn đúng vị trí tổ chức
             </p>
+
             <p className="mt-1 text-sm leading-6 text-[#8c7659]">
               Địa chỉ và tọa độ được dùng để tìm kiếm workshop gần người dùng.
             </p>
@@ -1380,10 +1274,7 @@ function LocationStep({ location, onChange }: LocationStepProps) {
         </div>
       </div>
 
-      <LocationPicker
-        value={{ ...location, placeId: location.placeId ?? "" }}
-        onChange={onChange}
-      />
+      <LocationPicker value={location} onChange={onChange} />
     </div>
   );
 }
@@ -1397,9 +1288,7 @@ function PreviewStep({ form }: { form: WorkshopFormState }) {
     .map((item) => item.trim())
     .filter(Boolean);
 
-  const validSchedules = form.schedules.filter(
-    (schedule) => schedule.date && schedule.time,
-  );
+  const validSchedules = form.schedules.filter((schedule) => schedule.startAt);
 
   return (
     <div className="space-y-7">
@@ -1421,7 +1310,7 @@ function PreviewStep({ form }: { form: WorkshopFormState }) {
 
           <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
             <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[#214c36] backdrop-blur">
-              {form.category}
+              {form.categories.join(", ")}
             </span>
             <h3 className="mt-3 max-w-3xl text-2xl font-black sm:text-3xl">
               {form.title || "Tên workshop"}
@@ -1483,17 +1372,18 @@ function PreviewStep({ form }: { form: WorkshopFormState }) {
             />
             <PreviewInfoRow
               icon={<Users className="size-4" />}
-              label="Số học viên"
-              value={form.seats ? `${form.seats} người` : "Chưa thiết lập"}
-            />
-            <PreviewInfoRow
-              icon={<BookOpen className="size-4" />}
-              label="Trình độ"
+              label="Sức chứa mỗi lịch"
               value={
-                LEVEL_OPTIONS.find((item) => item.value === form.level)
-                  ?.label ?? form.level
+                validSchedules.length
+                  ? `${Math.max(
+                      ...validSchedules.map((schedule) =>
+                        Number(schedule.seatsTotal),
+                      ),
+                    )} người`
+                  : "Chưa thiết lập"
               }
             />
+
             <PreviewInfoRow
               icon={<CalendarDays className="size-4" />}
               label="Lịch tổ chức"

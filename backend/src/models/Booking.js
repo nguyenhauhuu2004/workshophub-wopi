@@ -7,53 +7,68 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
+      trim: true,
+      uppercase: true,
     },
 
     workshop: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Workshop",
       required: true,
-      index: true,
     },
 
-    // Lưu host trực tiếp để truy vấn dashboard và phân quyền nhanh.
     host: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
 
+    /*
+     * Đây là _id của schedule nằm trong:
+     *
+     * workshop.schedules
+     *
+     * Vì vậy workshopScheduleSchema phải được phép tạo _id.
+     */
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      index: true,
     },
 
-    // Snapshot tên/ngày/giờ của lịch tại thời điểm đặt.
+    /*
+     * Chuỗi dùng để hiển thị nhanh.
+     *
+     * Ví dụ:
+     * "08:00, Thứ Bảy 20/09/2026"
+     */
     sessionLabel: {
       type: String,
       required: true,
       trim: true,
     },
 
+    /*
+     * Snapshot lịch tại thời điểm đặt chỗ.
+     *
+     * Không lấy lại dữ liệu từ Workshop khi hiển thị booking,
+     * vì host có thể chỉnh sửa lịch sau khi người dùng đặt.
+     */
     sessionSnapshot: {
-      date: {
-        type: String,
+      startAt: {
+        type: Date,
         required: true,
       },
 
-      time: {
-        type: String,
+      seatsTotal: {
+        type: Number,
         required: true,
+        min: 1,
       },
     },
 
@@ -76,6 +91,10 @@ const bookingSchema = new mongoose.Schema(
       min: 1,
     },
 
+    /*
+     * Toàn bộ dữ liệu tiền phải được backend tự tính.
+     * Không lấy trực tiếp từ request body của frontend.
+     */
     unitPrice: {
       type: Number,
       required: true,
@@ -147,26 +166,36 @@ const bookingSchema = new mongoose.Schema(
       index: true,
     },
 
-    paidAt: Date,
+    paidAt: {
+      type: Date,
+      default: null,
+    },
 
-    // QR chứa token gốc; DB chỉ lưu hash.
+    /*
+     * QR trả cho người dùng chứa ticketCode gốc.
+     * Database chỉ lưu SHA-256 hash.
+     */
     qrTokenHash: {
       type: String,
       unique: true,
       sparse: true,
-      index: true,
     },
 
-    checkedInAt: Date,
+    checkedInAt: {
+      type: Date,
+      default: null,
+    },
 
     checkedInBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
     },
 
     checkInMethod: {
       type: String,
       enum: ["qr", "manual"],
+      default: null,
     },
 
     payoutStatus: {
@@ -176,11 +205,15 @@ const bookingSchema = new mongoose.Schema(
       index: true,
     },
 
-    payoutAt: Date,
+    payoutAt: {
+      type: Date,
+      default: null,
+    },
 
     promotionCampaign: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PromotionCampaign",
+      default: null,
     },
   },
   {
@@ -188,19 +221,37 @@ const bookingSchema = new mongoose.Schema(
   },
 );
 
+/*
+ * Dashboard của host:
+ * lấy booking mới nhất theo host.
+ */
 bookingSchema.index({
   host: 1,
   createdAt: -1,
 });
 
+/*
+ * Lịch sử booking của người dùng.
+ */
+bookingSchema.index({
+  user: 1,
+  createdAt: -1,
+});
+
+/*
+ * Truy vấn booking theo workshop, schedule và trạng thái.
+ */
 bookingSchema.index({
   workshop: 1,
   sessionId: 1,
   status: 1,
 });
 
+/*
+ * Hash ticket code trước khi lưu vào qrTokenHash.
+ */
 bookingSchema.statics.hashTicketCode = function (ticketCode) {
-  return crypto.createHash("sha256").update(ticketCode).digest("hex");
+  return crypto.createHash("sha256").update(String(ticketCode)).digest("hex");
 };
 
 const Booking = mongoose.model("Booking", bookingSchema);

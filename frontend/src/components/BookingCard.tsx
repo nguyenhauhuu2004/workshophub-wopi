@@ -1,384 +1,335 @@
-"use client";
+import { useEffect, useMemo, useState } from "react";
 
-import { useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Clock3,
+  Loader2,
+  MapPin,
+  Minus,
+  Plus,
+  Users,
+} from "lucide-react";
 
-export type BookingSession = {
-  id: string | number;
-  date: string;
-  time: string;
-  remaining: number;
-};
+import { Button } from "@/components/ui/button";
 
-export type BookingData = {
-  session: BookingSession;
-  quantity: number;
-  pricePerPerson: number;
-  subtotal: number;
-  tax: number;
-  total: number;
-};
+import type { BookingCardData, BookingSession } from "@/types/booking";
 
 type BookingCardProps = {
   pricePerPerson: number;
   sessions: BookingSession[];
-  taxRate?: number;
   location: string;
-  currency?: string;
-  locale?: string;
-  className?: string;
+
+  taxRate?: number;
   disabled?: boolean;
-  onBook?: (booking: BookingData) => void | Promise<void>;
+  className?: string;
+
+  onBook: (data: BookingCardData) => Promise<void> | void;
 };
-export default function BookingCard({
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(amount);
+};
+
+const formatSessionDate = (startAt: string) => {
+  const date = new Date(startAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Ngày không hợp lệ";
+  }
+
+  return date.toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const formatSessionTime = (startAt: string) => {
+  const date = new Date(startAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const BookingCard = ({
   pricePerPerson,
   sessions,
-  taxRate = 0.08,
   location,
-  currency = "VND",
-  locale = "vi-VN",
-  className = "",
+  taxRate = 0.08,
   disabled = false,
+  className = "",
   onBook,
-}: BookingCardProps) {
+}: BookingCardProps) => {
   const availableSessions = useMemo(
-    () => sessions.filter((session) => session.remaining > 0),
+    () =>
+      sessions.filter(
+        (session) =>
+          session.spotsLeft > 0 &&
+          new Date(session.startAt).getTime() > Date.now(),
+      ),
     [sessions],
   );
 
-  const dates = useMemo(
-    () => [...new Set(sessions.map((session) => session.date))],
-    [sessions],
-  );
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
 
-  const defaultSession = availableSessions[0] ?? sessions[0];
+  const [quantity, setQuantity] = useState(1);
 
-  const [selectedDate, setSelectedDate] = useState(defaultSession?.date ?? "");
-
-  const [selectedSessionId, setSelectedSessionId] = useState<
-    string | number | null
-  >(defaultSession?.id ?? null);
-
-  const [quantity, setQuantity] = useState(defaultSession ? 1 : 0);
-
-  const sessionsByDate = useMemo(
-    () => sessions.filter((session) => session.date === selectedDate),
-    [sessions, selectedDate],
-  );
+  const [submitting, setSubmitting] = useState(false);
 
   const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
-    [sessions, selectedSessionId],
-  );
-
-  const subtotal = pricePerPerson * quantity;
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
-
-  const moneyFormatter = useMemo(
     () =>
-      new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency,
-        maximumFractionDigits: currency === "VND" ? 0 : 2,
-      }),
-    [currency, locale],
+      availableSessions.find((session) => session.id === selectedSessionId) ??
+      null,
+    [availableSessions, selectedSessionId],
   );
 
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
-      }),
-    [locale],
-  );
+  useEffect(() => {
+    const currentStillExists = availableSessions.some(
+      (session) => session.id === selectedSessionId,
+    );
 
-  const formatDate = (date: string) => {
-    const parsedDate = new Date(`${date}T00:00:00`);
+    if (!currentStillExists) {
+      setSelectedSessionId(availableSessions[0]?.id ?? "");
+    }
+  }, [availableSessions, selectedSessionId]);
 
-    if (Number.isNaN(parsedDate.getTime())) {
-      return date;
+  useEffect(() => {
+    if (!selectedSession) {
+      setQuantity(1);
+      return;
     }
 
-    return dateFormatter.format(parsedDate);
-  };
-
-  const handleSelectDate = (date: string) => {
-    setSelectedDate(date);
-
-    const firstAvailableSession = sessions.find(
-      (session) => session.date === date && session.remaining > 0,
+    setQuantity((current) =>
+      Math.min(Math.max(current, 1), selectedSession.spotsLeft),
     );
+  }, [selectedSession]);
 
-    const firstSession =
-      firstAvailableSession ??
-      sessions.find((session) => session.date === date);
+  const subtotal = pricePerPerson * quantity;
 
-    setSelectedSessionId(firstSession?.id ?? null);
-    setQuantity(firstAvailableSession ? 1 : 0);
-  };
+  const taxAmount = Math.round(subtotal * taxRate);
 
-  const handleSelectSession = (session: BookingSession) => {
-    if (session.remaining <= 0) return;
+  const grossAmount = subtotal + taxAmount;
 
-    setSelectedSessionId(session.id);
-    setQuantity((currentQuantity) =>
-      Math.min(Math.max(currentQuantity, 1), session.remaining),
-    );
+  const increaseQuantity = () => {
+    if (!selectedSession) {
+      return;
+    }
+
+    setQuantity((current) => Math.min(current + 1, selectedSession.spotsLeft));
   };
 
   const decreaseQuantity = () => {
-    setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1));
+    setQuantity((current) => Math.max(current - 1, 1));
   };
 
-  const increaseQuantity = () => {
-    if (!selectedSession) return;
+  const handleSubmit = async () => {
+    if (
+      disabled ||
+      submitting ||
+      !selectedSession ||
+      quantity < 1 ||
+      quantity > selectedSession.spotsLeft
+    ) {
+      return;
+    }
 
-    setQuantity((currentQuantity) =>
-      Math.min(selectedSession.remaining, currentQuantity + 1),
-    );
+    try {
+      setSubmitting(true);
+
+      await onBook({
+        session: selectedSession,
+        quantity,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleBook = () => {
-    if (!selectedSession || quantity < 1) return;
-
-    onBook?.({
-      session: selectedSession,
-      quantity,
-      pricePerPerson,
-      subtotal,
-      tax,
-      total,
-    });
-  };
-
-  const canBook =
-    !disabled &&
-    selectedSession !== null &&
-    selectedSession.remaining > 0 &&
-    quantity > 0;
+  const isSubmitting = disabled || submitting;
 
   return (
-    <aside
-      className={[
-        "w-full rounded-3xl border border-neutral-200 bg-white p-5",
-        "shadow-sm sm:p-6",
-        className,
-      ].join(" ")}
+    <div
+      className={`rounded-3xl border bg-background p-5 shadow-sm sm:p-6 ${className}`}
     >
-      <div className="border-b border-neutral-200 pb-5">
-        <p className="text-sm text-neutral-500">Giá tiền cho mỗi người</p>
+      <div>
+        <p className="text-sm text-muted-foreground">Giá mỗi người</p>
 
-        <div className="mt-1 flex items-end gap-2">
-          <span className="text-3xl font-semibold tracking-tight text-neutral-950">
-            {moneyFormatter.format(pricePerPerson)}
-          </span>
-
-          <span className="pb-1 text-sm text-neutral-500">/ người</span>
-        </div>
+        <p className="mt-1 text-3xl font-bold tracking-tight">
+          {formatCurrency(pricePerPerson)}
+        </p>
       </div>
 
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-neutral-950">Chọn ngày</h3>
+        <div className="mb-3 flex items-center gap-2">
+          <CalendarDays className="size-4 text-primary" />
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
-          {dates.map((date) => {
-            const isSelected = selectedDate === date;
-
-            return (
-              <button
-                key={date}
-                type="button"
-                disabled={disabled}
-                onClick={() => handleSelectDate(date)}
-                className={[
-                  "shrink-0 rounded-xl border px-4 py-3 text-sm font-medium",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                  isSelected
-                    ? "border-neutral-950 bg-neutral-950 text-white"
-                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400",
-                ].join(" ")}
-              >
-                {formatDate(date)}
-              </button>
-            );
-          })}
+          <p className="text-sm font-semibold">Chọn lịch tổ chức</p>
         </div>
-      </div>
 
-      <div className="mt-5">
-        <h3 className="text-sm font-semibold text-neutral-950">
-          Chọn khung giờ
-        </h3>
+        {availableSessions.length > 0 ? (
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {availableSessions.map((session) => {
+              const selected = session.id === selectedSessionId;
 
-        <div className="mt-3 grid gap-2">
-          {sessionsByDate.map((session) => {
-            const isSelected = selectedSessionId === session.id;
-            const isSoldOut = session.remaining <= 0;
-
-            return (
-              <button
-                key={session.id}
-                type="button"
-                disabled={disabled || isSoldOut}
-                onClick={() => handleSelectSession(session)}
-                className={[
-                  "flex items-center justify-between rounded-xl border",
-                  "px-4 py-3 text-left",
-                  "focus-visible:outline-none focus-visible:ring-2",
-                  "focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
-                  isSelected
-                    ? "border-neutral-950 bg-neutral-50"
-                    : "border-neutral-200",
-                  isSoldOut
-                    ? "cursor-not-allowed bg-neutral-50 opacity-50"
-                    : "hover:border-neutral-400",
-                ].join(" ")}
-              >
-                <span className="font-medium text-neutral-950">
-                  {session.time}
-                </span>
-
-                <span
-                  className={[
-                    "text-sm",
-                    isSoldOut
-                      ? "text-red-500"
-                      : session.remaining <= 3
-                        ? "text-orange-600"
-                        : "text-neutral-500",
-                  ].join(" ")}
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setSelectedSessionId(session.id);
+                    setQuantity(1);
+                  }}
+                  className={`w-full rounded-2xl border p-4 text-left transition ${
+                    selected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:border-primary/40 hover:bg-muted/50"
+                  }`}
                 >
-                  {isSoldOut ? "Hết chỗ" : `Còn ${session.remaining} chỗ`}
-                </span>
-              </button>
-            );
-          })}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold capitalize">
+                        {formatSessionDate(session.startAt)}
+                      </p>
 
-          {!sessionsByDate.length && (
-            <div className="rounded-xl bg-neutral-50 px-4 py-5 text-center text-sm text-neutral-500">
-              Không có khung giờ cho ngày này.
-            </div>
-          )}
-        </div>
+                      <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Clock3 className="size-4" />
+
+                        <span>{formatSessionTime(session.startAt)}</span>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        session.spotsLeft <= 3
+                          ? "bg-red-50 text-red-600"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      Còn {session.spotsLeft} chỗ
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="size-3.5" />
+
+                    <span>Tối đa {session.seatsTotal} người</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed bg-muted/40 p-5 text-center text-sm text-muted-foreground">
+            Workshop hiện không có lịch còn chỗ
+          </div>
+        )}
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-neutral-950">
-            Số lượng người
-          </h3>
+      <div className="mt-6">
+        <p className="text-sm font-semibold">Số lượng người</p>
 
-          {selectedSession && (
-            <p className="mt-1 text-xs text-neutral-500">
-              Tối đa {selectedSession.remaining} người
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center rounded-xl border border-neutral-200">
+        <div className="mt-3 flex items-center justify-between rounded-2xl border p-3">
           <button
             type="button"
+            disabled={isSubmitting || quantity <= 1}
             onClick={decreaseQuantity}
-            disabled={!canBook || quantity <= 1}
+            className="flex size-10 items-center justify-center rounded-xl border transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Giảm số lượng"
-            className="grid h-11 w-11 place-items-center text-xl disabled:cursor-not-allowed disabled:opacity-30"
           >
-            −
+            <Minus className="size-4" />
           </button>
 
-          <span className="min-w-10 text-center font-semibold text-neutral-950">
-            {quantity}
-          </span>
+          <div className="text-center">
+            <p className="text-xl font-bold">{quantity}</p>
+
+            <p className="text-xs text-muted-foreground">người tham gia</p>
+          </div>
 
           <button
             type="button"
-            onClick={increaseQuantity}
             disabled={
-              !canBook ||
+              isSubmitting ||
               !selectedSession ||
-              quantity >= selectedSession.remaining
+              quantity >= selectedSession.spotsLeft
             }
+            onClick={increaseQuantity}
+            className="flex size-10 items-center justify-center rounded-xl border transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Tăng số lượng"
-            className="grid h-11 w-11 place-items-center text-xl disabled:cursor-not-allowed disabled:opacity-30"
           >
-            +
+            <Plus className="size-4" />
           </button>
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl bg-neutral-50 p-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-neutral-600">
-            {moneyFormatter.format(pricePerPerson)} × {quantity} người
+      <div className="mt-6 flex items-start gap-2 rounded-2xl bg-muted/50 p-4">
+        <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+
+        <div>
+          <p className="text-xs text-muted-foreground">Địa điểm</p>
+
+          <p className="mt-1 text-sm font-medium">{location}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3 border-t pt-5 text-sm">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground">
+            {formatCurrency(pricePerPerson)} × {quantity}
           </span>
 
-          <span className="font-medium text-neutral-950">
-            {moneyFormatter.format(subtotal)}
-          </span>
+          <span>{formatCurrency(subtotal)}</span>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-neutral-600">
-            Thuế ({Math.round(taxRate * 100)}%)
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground">
+            Thuế ({Math.round(taxRate * 100)}
+            %)
           </span>
 
-          <span className="font-medium text-neutral-950">
-            {moneyFormatter.format(tax)}
-          </span>
+          <span>{formatCurrency(taxAmount)}</span>
         </div>
 
-        <div className="my-4 border-t border-neutral-200" />
+        <div className="flex items-center justify-between gap-4 border-t pt-3">
+          <span className="font-semibold">Tổng thanh toán</span>
 
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-neutral-950">Tổng tiền</span>
-
-          <span className="text-xl font-semibold text-neutral-950">
-            {moneyFormatter.format(total)}
+          <span className="text-lg font-bold text-primary">
+            {formatCurrency(grossAmount)}
           </span>
         </div>
       </div>
 
-      <button
+      <Button
         type="button"
-        disabled={!canBook}
-        onClick={handleBook}
-        className={[
-          "mt-5 w-full rounded-xl bg-neutral-950 px-5 py-3.5",
-          "font-semibold text-white",
-          "hover:bg-neutral-800",
-          "focus-visible:outline-none focus-visible:ring-2",
-          "focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
-          "disabled:cursor-not-allowed disabled:bg-neutral-300",
-        ].join(" ")}
+        disabled={isSubmitting || !selectedSession}
+        onClick={() => void handleSubmit()}
+        className="mt-6 h-12 w-full rounded-xl text-base font-semibold"
       >
-        Book now
-      </button>
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            Đang xử lý...
+          </>
+        ) : (
+          "Đặt chỗ"
+        )}
+      </Button>
 
-      <div className="mt-6 border-t border-neutral-200 pt-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-neutral-400">
-          Location
-        </p>
-
-        <div className="mt-2 flex items-start gap-3">
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            className="mt-0.5 h-5 w-5 shrink-0 fill-none stroke-current text-neutral-700"
-          >
-            <path
-              d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="12" cy="10" r="2.5" strokeWidth="1.8" />
-          </svg>
-
-          <p className="text-sm leading-6 text-neutral-700">{location}</p>
-        </div>
-      </div>
-    </aside>
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        Bạn sẽ thanh toán trực tiếp tại địa điểm tổ chức.
+      </p>
+    </div>
   );
-}
+};
+
+export default BookingCard;

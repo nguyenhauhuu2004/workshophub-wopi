@@ -1,24 +1,19 @@
 import express from "express";
 
 import {
-  //   cancelMyBooking,
+  checkInBooking,
   createBooking,
-  //   getHostBookings,
-  //   getMyBookings,
+  getMyBookings,
 } from "../controllers/bookingController.js";
 
-import { protectedRoute } from "../middlewares/authMiddleware.js";
+import { isHost, protectedRoute } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.use(protectedRoute);
+router.post("/", protectedRoute, createBooking);
 
-router.post("/", createBooking);
+router.get("/me", protectedRoute, getMyBookings);
 
-// router.get("/me", getMyBookings);
-
-// router.patch("/:id/cancel", cancelMyBooking);
-
-// router.get("/host/list", getHostBookings);
+router.post("/check-in", protectedRoute, isHost, checkInBooking);
 
 export default router;

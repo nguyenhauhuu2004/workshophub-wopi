@@ -1,221 +1,177 @@
 import api from "@/lib/axios";
 
-import type { WorkshopFormData, WorkshopMedia } from "@/types/workshop";
-
-export type WorkshopPayload = Omit<
+import type {
+  GoongPlacePrediction,
+  GoongPlaceResult,
+  Workshop,
   WorkshopFormData,
-  "price" | "seats" | "location"
-> & {
-  price: number;
-  seatsTotal: number;
-
-  location: {
-    address: string;
-    placeId: string;
-    notes: string;
-
-    coordinates: {
-      type: "Point";
-      coordinates: [number, number];
-    };
-  };
-};
-type NearbyParams = {
-  longitude: number;
-  latitude: number;
-  distance?: number;
-  excludeId?: string;
-};
-type CreateBookingPayload = {
-  workshopId: string;
-  sessionId: string;
-  quantity: number;
-};
-
-export type WorkshopQuery = {
-  search?: string;
-  category?: string;
-  maxPrice?: number;
-  level?: string;
-  address?: string;
-  page?: number;
-  limit?: number;
-  sponsored?: boolean;
-};
-
-export type WorkshopListItem = {
-  _id: string;
-  title: string;
-  category: string;
-  description: string;
-
-  price: number;
-  level: string;
-  duration: string;
-  seatsTotal?: number;
-
-  thumbnail?: WorkshopMedia;
-
-  host?: {
-    _id?: string;
-    username?: string;
-    displayName?: string;
-    avatarUrl?: string;
-  };
-
-  location: {
-    address: string;
-
-    coordinates: {
-      type: "Point";
-      coordinates: [number, number];
-    };
-  };
-
-  createdAt?: string;
-  updatedAt?: string;
-};
+  WorkshopLocation,
+  WorkshopSchedule,
+  WorkshopStatus,
+} from "@/types/workshop";
 
 export type GetWorkshopsParams = {
   search?: string;
   category?: string;
   maxPrice?: number;
-  level?: string;
   address?: string;
   page?: number;
   limit?: number;
 };
 
-export type GetWorkshopsResponse = {
-  workshops: WorkshopListItem[];
+export type GetNearbyWorkshopsParams = {
+  longitude: number;
+  latitude: number;
+  distance?: number;
+  excludeId?: string;
+};
+
+export type WorkshopListResponse = {
+  workshops: Workshop[];
   total: number;
   page: number;
   totalPages: number;
 };
 
-type CreateReviewPayload = {
-  rating: number;
-  comment: string;
+export type WorkshopResponse = {
+  message?: string;
+  workshop: Workshop;
+};
+
+export type UpdateWorkshopData = {
+  title?: string;
+  categories?: string[];
+  description?: string;
+  highlights?: string[];
+  includes?: string[];
+  price?: string | number;
+  duration?: string;
+  schedules?: WorkshopSchedule[];
+  location?: WorkshopLocation;
+  status?: WorkshopStatus;
+};
+
+const buildWorkshopFormData = (data: WorkshopFormData): FormData => {
+  const formData = new FormData();
+
+  formData.append("title", data.title);
+  formData.append("categories", JSON.stringify(data.categories));
+  formData.append("description", data.description);
+  formData.append("highlights", JSON.stringify(data.highlights));
+  formData.append("includes", JSON.stringify(data.includes));
+  formData.append("price", data.price);
+  formData.append("duration", data.duration);
+  formData.append("schedules", JSON.stringify(data.schedules));
+  formData.append("location", JSON.stringify(data.location));
+  formData.append("status", data.status ?? "published");
+
+  if (data.thumbnail) {
+    formData.append("thumbnail", data.thumbnail);
+  }
+
+  data.gallery.forEach((file) => {
+    formData.append("gallery", file);
+  });
+
+  if (data.video) {
+    formData.append("video", data.video);
+  }
+
+  return formData;
 };
 
 export const workshopService = {
   getWorkshops: async (
-    params: GetWorkshopsParams,
-  ): Promise<GetWorkshopsResponse> => {
-    const response = await api.get("/workshops", {
+    params: GetWorkshopsParams = {},
+  ): Promise<WorkshopListResponse> => {
+    const response = await api.get<WorkshopListResponse>("/workshops", {
       params,
     });
 
     return response.data;
   },
-  // getWorkshops: async (query: WorkshopQuery) => {
-  //   const { data } = await api.get("/workshops", {
-  //     params: query,
-  //   });
 
-  //   return data;
-  // },
-  getWorkshop: async (id: string) => {
-    const { data } = await api.get(`/workshops/${id}`);
+  getWorkshopById: async (workshopId: string): Promise<Workshop> => {
+    const response = await api.get<WorkshopResponse>(
+      `/workshops/${workshopId}`,
+    );
 
-    return data.workshop;
+    return response.data.workshop;
   },
 
-  getNearbyWorkshops: async ({
-    longitude,
-    latitude,
-    distance = 10_000,
-    excludeId,
-  }: NearbyParams) => {
-    const { data } = await api.get("/workshops/nearby", {
-      params: {
-        longitude,
-        latitude,
-        distance,
-        excludeId,
-      },
+  getNearbyWorkshops: async (
+    params: GetNearbyWorkshopsParams,
+  ): Promise<Workshop[]> => {
+    const response = await api.get<{
+      workshops: Workshop[];
+    }>("/workshops/nearby", {
+      params,
     });
 
-    return data.workshops;
+    return response.data.workshops;
   },
 
-  createBooking: async (payload: CreateBookingPayload) => {
-    const { data } = await api.post("/bookings", payload);
+  createWorkshop: async (data: WorkshopFormData): Promise<Workshop> => {
+    const formData = buildWorkshopFormData(data);
 
-    return data;
-  },
-  uploadMedia: async (files: File[]): Promise<WorkshopMedia[]> => {
-    const formData = new FormData();
+    const response = await api.post<WorkshopResponse>("/workshops", formData);
 
-    files.forEach((file) => {
-      formData.append("files", file);
-    });
-
-    const { data } = await api.post("/workshops/upload-media", formData);
-
-    return data.media;
+    return response.data.workshop;
   },
 
-  // createWorkshop: async (payload: WorkshopPayload) => {
-  //   const { data } = await api.post("/workshops", payload);
+  updateWorkshop: async (
+    workshopId: string,
+    data: UpdateWorkshopData,
+  ): Promise<Workshop> => {
+    const response = await api.patch<WorkshopResponse>(
+      `/workshops/${workshopId}`,
+      data,
+    );
 
-  //   return data;
-  // },
-  createWorkshop: async (formData: FormData) => {
-    const response = await api.post("/workshops", formData);
-
-    return response.data;
+    return response.data.workshop;
   },
-
-  updateWorkshop: async (id: string, payload: WorkshopPayload) => {
-    const { data } = await api.patch(`/workshops/${id}`, payload);
-
-    return data;
-  },
-
-  searchPlaces: async (input: string, location?: string) => {
-    const { data } = await api.get("/workshops/goong/autocomplete", {
+  searchPlaces: async (
+    input: string,
+    location?: string,
+  ): Promise<GoongPlacePrediction[]> => {
+    const response = await api.get<{
+      predictions: GoongPlacePrediction[];
+    }>("/workshops/goong/autocomplete", {
       params: {
         input,
         location,
       },
     });
 
-    return data.predictions ?? [];
+    return response.data.predictions ?? [];
   },
 
-  getPlaceDetail: async (placeId: string) => {
-    const { data } = await api.get("/workshops/goong/place-detail", {
+  getPlaceDetail: async (placeId: string): Promise<GoongPlaceResult | null> => {
+    const response = await api.get<{
+      result: GoongPlaceResult;
+    }>("/workshops/goong/place-detail", {
       params: {
         place_id: placeId,
       },
     });
 
-    return data.result;
+    return response.data.result ?? null;
   },
 
-  reverseGeocode: async (latitude: number, longitude: number) => {
-    const { data } = await api.get("/workshops/goong/reverse-geocode", {
+  reverseGeocode: async (
+    latitude: number,
+    longitude: number,
+  ): Promise<GoongPlaceResult | null> => {
+    const response = await api.get<{
+      results: GoongPlaceResult[];
+    }>("/workshops/goong/reverse-geocode", {
       params: {
         latlng: `${latitude},${longitude}`,
       },
     });
 
-    return data.results?.[0];
-  },
-
-  getReviews: async (workshopId: string) => {
-    const { data } = await api.get(`/workshops/${workshopId}/reviews`);
-
-    return data;
-  },
-
-  createReview: async (workshopId: string, payload: CreateReviewPayload) => {
-    const { data } = await api.post(
-      `/workshops/${workshopId}/reviews`,
-      payload,
-    );
-
-    return data;
+    return response.data.results?.[0] ?? null;
   },
 };
+
+export default workshopService;

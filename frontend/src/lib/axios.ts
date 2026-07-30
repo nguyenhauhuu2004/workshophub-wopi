@@ -1,20 +1,22 @@
+import axios, { type InternalAxiosRequestConfig } from "axios";
+
 import { useAuthStore } from "@/stores/useAuthStore";
-import axios from "axios";
+
+type RetryRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
 
 const api = axios.create({
   baseURL:
-    // import.meta.env.VITE_API_URL,
     import.meta.env.MODE === "development"
       ? "http://localhost:5001/api"
       : "/api",
+
   withCredentials: true,
 });
 
-// gắn access token vào req header
 api.interceptors.request.use((config) => {
-  const { accessToken } = useAuthStore.getState();
-  console.log("Request URL:", config.url);
-  console.log("Access token:", accessToken);
+  const accessToken = useAuthStore.getState().accessToken;
 
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -23,36 +25,64 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// tự động gọi refresh api khi access token hết hạn
-api.interceptors.response.use(
-  (res) => res,
-  async (error) => {
-    const originalRequest = error.config;
+let refreshPromise: Promise<string> | null = null;
 
-    // những api không cần check
-    if (
-      originalRequest.url.includes("/auth/signin") ||
-      originalRequest.url.includes("/auth/signup") ||
-      originalRequest.url.includes("/auth/refresh")
-    ) {
+const refreshAccessToken = async (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post<{
+        accessToken: string;
+      }>("/auth/refresh")
+      .then((response) => {
+        const accessToken = response.data.accessToken;
+
+        useAuthStore.getState().setAccessToken(accessToken);
+
+        return accessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
+api.interceptors.response.use(
+  (response) => response,
+
+  async (error) => {
+    const originalRequest = error.config as RetryRequestConfig | undefined;
+
+    if (!originalRequest) {
       return Promise.reject(error);
     }
 
-    originalRequest._retryCount = originalRequest._retryCount || 0;
+    const requestUrl = originalRequest.url ?? "";
 
-    if (error.response?.status === 403 && originalRequest._retryCount < 4) {
-      originalRequest._retryCount += 1;
+    const isAuthRequest =
+      requestUrl.includes("/auth/signin") ||
+      requestUrl.includes("/auth/signup") ||
+      requestUrl.includes("/auth/refresh");
+
+    if (isAuthRequest) {
+      return Promise.reject(error);
+    }
+
+    const status = error.response?.status;
+
+    if (status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
 
       try {
-        const res = await api.post("/auth/refresh", { withCredentials: true });
-        const newAccessToken = res.data.accessToken;
-
-        useAuthStore.getState().setAccessToken(newAccessToken);
+        const newAccessToken = await refreshAccessToken();
 
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
         return api(originalRequest);
       } catch (refreshError) {
         useAuthStore.getState().clearState();
+
         return Promise.reject(refreshError);
       }
     }

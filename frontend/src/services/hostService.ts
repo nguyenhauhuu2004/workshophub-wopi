@@ -1,91 +1,65 @@
 import api from "@/lib/axios";
+
 import type {
-  CheckInResult,
+  CreatePromotionCampaignData,
+  CreatePromotionCampaignResponse,
   HostBookingRow,
   HostDashboardSummary,
   HostWorkshopRow,
   PromotionCampaign,
   PromotionPackage,
-  RevenueTransaction,
 } from "@/types/host";
 
-type DateRangeParams = {
-  from?: string;
-  to?: string;
-};
-
 export const hostService = {
-  getDashboard: async (params: DateRangeParams = {}) => {
-    const { data } = await api.get<HostDashboardSummary>("/host/dashboard", {
-      params,
-    });
+  getDashboard: async (): Promise<HostDashboardSummary> => {
+    const response = await api.get<{
+      summary: HostDashboardSummary;
+    }>("/host/dashboard");
 
-    return data;
+    return response.data.summary;
   },
 
-  getWorkshops: async (params?: { status?: string; search?: string }) => {
-    const { data } = await api.get<{
+  getWorkshops: async (): Promise<HostWorkshopRow[]> => {
+    const response = await api.get<{
       workshops: HostWorkshopRow[];
-    }>("/host/workshops", { params });
+    }>("/host/workshops");
 
-    return data.workshops;
+    return response.data.workshops;
   },
 
-  getBookings: async (params?: {
-    workshopId?: string;
-    status?: string;
-    search?: string;
-  }) => {
-    const { data } = await api.get<{
+  getBookings: async (): Promise<HostBookingRow[]> => {
+    const response = await api.get<{
       bookings: HostBookingRow[];
-    }>("/host/bookings", { params });
+    }>("/host/bookings");
 
-    return data.bookings;
+    return response.data.bookings;
   },
-
-  checkIn: async (ticketCode: string) => {
-    const { data } = await api.post<CheckInResult>("/host/check-in", {
-      ticketCode,
-    });
-
-    return data;
-  },
-
-  getRevenueTransactions: async (params: DateRangeParams = {}) => {
-    const { data } = await api.get<{
-      transactions: RevenueTransaction[];
-    }>("/host/revenue", { params });
-
-    return data.transactions;
-  },
-
-  getPromotionPackages: async () => {
-    const { data } = await api.get<{
+  getPromotionPackages: async (): Promise<PromotionPackage[]> => {
+    const response = await api.get<{
       packages: PromotionPackage[];
-    }>("/host/promotions/packages");
+    }>("/promotions/packages");
 
-    return data.packages;
+    return response.data.packages;
   },
 
-  getPromotionCampaigns: async () => {
-    const { data } = await api.get<{
+  getPromotionCampaigns: async (): Promise<PromotionCampaign[]> => {
+    const response = await api.get<{
       campaigns: PromotionCampaign[];
-    }>("/host/promotions");
+    }>("/promotions/campaigns");
 
-    return data.campaigns;
+    return response.data.campaigns;
   },
 
-  createPromotionCampaign: async (payload: {
-    workshopId: string;
-    packageCode: string;
-    startAt: string;
-  }) => {
-    const { data } = await api.post<{
-      campaign: PromotionCampaign;
-      checkoutUrl?: string;
-      message: string;
-    }>("/host/promotions", payload);
+  createPromotionCampaign: async (
+    data: CreatePromotionCampaignData,
+  ): Promise<CreatePromotionCampaignResponse> => {
+    const response = await api.post<CreatePromotionCampaignResponse>(
+      "/promotions/campaigns",
+      data,
+    );
 
-    return data;
+    return response.data;
   },
 };
+
+export default hostService;

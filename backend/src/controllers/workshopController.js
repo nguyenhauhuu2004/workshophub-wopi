@@ -4,12 +4,6 @@ import {
   uploadWorkshopMediaFromBuffer,
 } from "../services/cloudinaryService.js";
 
-/**
- * Parse dữ liệu JSON gửi từ FormData.
- *
- * Ví dụ:
- * formData.append("highlights", JSON.stringify(highlights));
- */
 const parseJSONField = (value, fallback) => {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -26,9 +20,81 @@ const parseJSONField = (value, fallback) => {
   }
 };
 
-/**
- * Chuẩn hóa kết quả Cloudinary để lưu vào Workshop.
- */
+const WORKSHOP_STATUSES = new Set([
+  "draft",
+  "published",
+  "cancelled",
+  "archived",
+]);
+
+const normalizeStringArray = (value) => {
+  const parsedValue = parseJSONField(value, []);
+
+  if (!Array.isArray(parsedValue)) {
+    return [];
+  }
+
+  return [
+    ...new Set(parsedValue.map((item) => String(item).trim()).filter(Boolean)),
+  ];
+};
+
+const normalizeCategories = (value) => {
+  const parsedValue = parseJSONField(value, value);
+
+  const categories = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
+
+  return [
+    ...new Set(
+      categories
+        .map((category) => String(category ?? "").trim())
+        .filter(Boolean),
+    ),
+  ];
+};
+
+const normalizeSchedules = (value) => {
+  const parsedValue = parseJSONField(value, []);
+
+  if (!Array.isArray(parsedValue)) {
+    return null;
+  }
+
+  const schedules = parsedValue.map((schedule) => {
+    const seatsTotal = Number(schedule?.seatsTotal);
+
+    const spotsLeft =
+      schedule?.spotsLeft === undefined
+        ? seatsTotal
+        : Number(schedule.spotsLeft);
+
+    return {
+      ...(schedule?._id ? { _id: schedule._id } : {}),
+      startAt: schedule?.startAt,
+      seatsTotal,
+      spotsLeft,
+    };
+  });
+
+  const isValid = schedules.every((schedule) => {
+    const startAt = new Date(schedule.startAt);
+
+    return (
+      !Number.isNaN(startAt.getTime()) &&
+      Number.isInteger(schedule.seatsTotal) &&
+      schedule.seatsTotal >= 1 &&
+      Number.isInteger(schedule.spotsLeft) &&
+      schedule.spotsLeft >= 0 &&
+      schedule.spotsLeft <= schedule.seatsTotal
+    );
+  });
+
+  return isValid ? schedules : null;
+};
+
+const escapeRegExp = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const normalizeMedia = (result) => {
   if (!result) {
     return null;
@@ -41,10 +107,6 @@ const normalizeMedia = (result) => {
   };
 };
 
-/**
- * Xóa các file đã upload nếu tạo workshop thất bại.
- * Tránh để lại file rác trên Cloudinary.
- */
 const cleanupUploadedMedia = async (mediaList) => {
   if (!mediaList.length) {
     return;
@@ -69,55 +131,27 @@ export const createWorkshop = async (req, res) => {
       });
     }
 
-    /*
-     * Khi route sử dụng:
-     *
-     * upload.fields([
-     *   { name: "thumbnail", maxCount: 1 },
-     *   { name: "gallery", maxCount: 10 },
-     *   { name: "video", maxCount: 1 },
-     * ])
-     *
-     * req.files sẽ có dạng:
-     *
-     * {
-     *   thumbnail: [File],
-     *   gallery: [File, File],
-     *   video: [File]
-     * }
-     */
     const files = req.files ?? {};
 
     const thumbnailFile = files.thumbnail?.[0];
     const galleryFiles = files.gallery ?? [];
     const videoFile = files.video?.[0];
 
-    const {
-      title,
-      category,
-      description,
-      price,
-      duration,
-      seatsTotal,
-      status,
-    } = req.body;
+    const { title, description, price, duration, status } = req.body;
 
-    const highlights = parseJSONField(req.body.highlights, []);
-    const includes = parseJSONField(req.body.includes, []);
-    const schedules = parseJSONField(req.body.schedules, []);
+    const categories = normalizeCategories(req.body.categories);
+    const highlights = normalizeStringArray(req.body.highlights);
+    const includes = normalizeStringArray(req.body.includes);
+    const schedules = normalizeSchedules(req.body.schedules);
     const location = parseJSONField(req.body.location, null);
 
-    /*
-     * Kiểm tra dữ liệu bắt buộc trước khi upload.
-     * Như vậy nếu form sai thì chưa có file nào bị đưa lên Cloudinary.
-     */
     if (!title?.trim()) {
       return res.status(400).json({
         message: "Tiêu đề workshop là bắt buộc",
       });
     }
 
-    if (!category?.trim()) {
+    if (!categories.length) {
       return res.status(400).json({
         message: "Danh mục workshop là bắt buộc",
       });
@@ -136,7 +170,7 @@ export const createWorkshop = async (req, res) => {
     }
 
     if (
-      !location?.address ||
+      !location?.address?.trim() ||
       !Array.isArray(location?.coordinates?.coordinates) ||
       location.coordinates.coordinates.length !== 2
     ) {
@@ -146,6 +180,7 @@ export const createWorkshop = async (req, res) => {
     }
 
     const longitude = Number(location.coordinates.coordinates[0]);
+
     const latitude = Number(location.coordinates.coordinates[1]);
 
     if (
@@ -162,7 +197,6 @@ export const createWorkshop = async (req, res) => {
     }
 
     const numericPrice = Number(price);
-    const numericSeatsTotal = Number(seatsTotal);
 
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
       return res.status(400).json({
@@ -170,17 +204,27 @@ export const createWorkshop = async (req, res) => {
       });
     }
 
-    if (!Number.isInteger(numericSeatsTotal) || numericSeatsTotal < 1) {
+    if (!schedules) {
       return res.status(400).json({
-        message: "Số lượng chỗ phải là số nguyên lớn hơn 0",
+        message:
+          "Lịch workshop không hợp lệ: cần startAt, seatsTotal và spotsLeft hợp lệ",
       });
     }
 
-    /*
-     * Bắt đầu upload sau khi dữ liệu form đã hợp lệ.
-     */
+    const normalizedStatus = status || "published";
 
-    // Upload thumbnail
+    if (!WORKSHOP_STATUSES.has(normalizedStatus)) {
+      return res.status(400).json({
+        message: "Trạng thái workshop không hợp lệ",
+      });
+    }
+
+    if (normalizedStatus === "published" && schedules.length === 0) {
+      return res.status(400).json({
+        message: "Workshop đã xuất bản phải có ít nhất một lịch",
+      });
+    }
+
     const thumbnailResult = await uploadWorkshopMediaFromBuffer(thumbnailFile, {
       folder: "wopy/workshops/thumbnails",
       resource_type: "image",
@@ -200,7 +244,6 @@ export const createWorkshop = async (req, res) => {
 
     uploadedMedia.push(thumbnail);
 
-    // Upload gallery
     const galleryResults = await Promise.all(
       galleryFiles.map((file) =>
         uploadWorkshopMediaFromBuffer(file, {
@@ -222,7 +265,6 @@ export const createWorkshop = async (req, res) => {
 
     uploadedMedia.push(...gallery);
 
-    // Upload video nếu có
     let video = null;
 
     if (videoFile) {
@@ -236,14 +278,11 @@ export const createWorkshop = async (req, res) => {
       uploadedMedia.push(video);
     }
 
-    /*
-     * Chỉ tạo document sau khi tất cả file upload thành công.
-     */
     const workshop = await Workshop.create({
       host: userId,
 
       title: title.trim(),
-      category: category.trim(),
+      categories,
       description: description.trim(),
 
       highlights,
@@ -254,20 +293,20 @@ export const createWorkshop = async (req, res) => {
       video,
 
       price: numericPrice,
-      duration,
-      seatsTotal: numericSeatsTotal,
+      duration: String(duration ?? "").trim(),
 
       schedules,
 
       location: {
         ...location,
+        address: location.address.trim(),
         coordinates: {
           type: "Point",
           coordinates: [longitude, latitude],
         },
       },
 
-      status: status || "published",
+      status: normalizedStatus,
     });
 
     return res.status(201).json({
@@ -277,10 +316,6 @@ export const createWorkshop = async (req, res) => {
   } catch (error) {
     console.error("Create workshop error:", error);
 
-    /*
-     * Nếu upload file thành công nhưng MongoDB tạo workshop lỗi,
-     * xóa toàn bộ file vừa upload khỏi Cloudinary.
-     */
     await cleanupUploadedMedia(uploadedMedia);
 
     return res.status(500).json({
@@ -292,23 +327,135 @@ export const createWorkshop = async (req, res) => {
 
 export const updateWorkshop = async (req, res) => {
   try {
-    const workshop = await Workshop.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        host: req.user?._id,
-      },
-      req.body,
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Bạn chưa đăng nhập",
+      });
+    }
+
+    const workshop = await Workshop.findOne({
+      _id: req.params.id,
+      host: userId,
+    });
 
     if (!workshop) {
       return res.status(404).json({
         message: "Không tìm thấy workshop hoặc bạn không có quyền chỉnh sửa",
       });
     }
+
+    const updates = {};
+
+    const allowedStringFields = ["title", "description", "duration"];
+
+    for (const field of allowedStringFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = String(req.body[field]).trim();
+      }
+    }
+
+    if (req.body.categories !== undefined) {
+      const categories = normalizeCategories(req.body.categories);
+
+      if (!categories.length) {
+        return res.status(400).json({
+          message: "Workshop phải có ít nhất một danh mục",
+        });
+      }
+
+      updates.categories = categories;
+    }
+
+    for (const field of ["highlights", "includes"]) {
+      if (req.body[field] !== undefined) {
+        updates[field] = normalizeStringArray(req.body[field]);
+      }
+    }
+
+    if (req.body.price !== undefined) {
+      const price = Number(req.body.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        return res.status(400).json({
+          message: "Giá workshop không hợp lệ",
+        });
+      }
+
+      updates.price = price;
+    }
+
+    if (req.body.schedules !== undefined) {
+      const schedules = normalizeSchedules(req.body.schedules);
+
+      if (!schedules) {
+        return res.status(400).json({
+          message:
+            "Lịch workshop không hợp lệ: cần startAt, seatsTotal và spotsLeft hợp lệ",
+        });
+      }
+
+      updates.schedules = schedules;
+    }
+
+    if (req.body.location !== undefined) {
+      const location = parseJSONField(req.body.location, null);
+
+      const rawCoordinates = location?.coordinates?.coordinates;
+
+      const longitude = Number(rawCoordinates?.[0]);
+      const latitude = Number(rawCoordinates?.[1]);
+
+      if (
+        !location?.address?.trim() ||
+        !Array.isArray(rawCoordinates) ||
+        rawCoordinates.length !== 2 ||
+        !Number.isFinite(longitude) ||
+        !Number.isFinite(latitude) ||
+        longitude < -180 ||
+        longitude > 180 ||
+        latitude < -90 ||
+        latitude > 90
+      ) {
+        return res.status(400).json({
+          message: "Thông tin địa điểm không hợp lệ",
+        });
+      }
+
+      updates.location = {
+        ...location,
+        address: location.address.trim(),
+        coordinates: {
+          type: "Point",
+          coordinates: [longitude, latitude],
+        },
+      };
+    }
+
+    if (req.body.status !== undefined) {
+      if (!WORKSHOP_STATUSES.has(req.body.status)) {
+        return res.status(400).json({
+          message: "Trạng thái workshop không hợp lệ",
+        });
+      }
+
+      updates.status = req.body.status;
+    }
+
+    const nextStatus = updates.status ?? workshop.status;
+
+    const nextSchedules = updates.schedules ?? workshop.schedules;
+
+    if (nextStatus === "published" && nextSchedules.length === 0) {
+      return res.status(400).json({
+        message: "Workshop đã xuất bản phải có ít nhất một lịch",
+      });
+    }
+
+    workshop.set(updates);
+
+    await workshop.save();
 
     return res.status(200).json({
       message: "Cập nhật workshop thành công",
@@ -360,6 +507,12 @@ export const deleteMediaController = async (req, res) => {
       });
     }
 
+    if (resourceType !== "image" && resourceType !== "video") {
+      return res.status(400).json({
+        message: "resourceType không hợp lệ",
+      });
+    }
+
     await deleteWorkshopMedia(publicId, resourceType);
 
     return res.status(200).json({
@@ -382,6 +535,12 @@ export const searchGoongPlaces = async (req, res) => {
     if (input.length < 2) {
       return res.status(200).json({
         predictions: [],
+      });
+    }
+
+    if (!process.env.GOONG_REST_API_KEY) {
+      return res.status(500).json({
+        message: "Chưa cấu hình Goong API key",
       });
     }
 
@@ -415,11 +574,17 @@ export const searchGoongPlaces = async (req, res) => {
 
 export const getGoongPlaceDetail = async (req, res) => {
   try {
-    const placeId = String(req.query.place_id ?? "");
+    const placeId = String(req.query.place_id ?? "").trim();
 
     if (!placeId) {
       return res.status(400).json({
         message: "Thiếu place_id",
+      });
+    }
+
+    if (!process.env.GOONG_REST_API_KEY) {
+      return res.status(500).json({
+        message: "Chưa cấu hình Goong API key",
       });
     }
 
@@ -447,11 +612,17 @@ export const getGoongPlaceDetail = async (req, res) => {
 
 export const reverseGoongGeocode = async (req, res) => {
   try {
-    const latlng = String(req.query.latlng ?? "");
+    const latlng = String(req.query.latlng ?? "").trim();
 
     if (!latlng) {
       return res.status(400).json({
         message: "Thiếu tọa độ latlng",
+      });
+    }
+
+    if (!process.env.GOONG_REST_API_KEY) {
+      return res.status(500).json({
+        message: "Chưa cấu hình Goong API key",
       });
     }
 
@@ -478,13 +649,29 @@ export const reverseGoongGeocode = async (req, res) => {
 export const getNearbyWorkshops = async (req, res) => {
   try {
     const longitude = Number(req.query.longitude);
+
     const latitude = Number(req.query.latitude);
+
     const distance = Number(req.query.distance ?? 10_000);
+
     const excludeId = req.query.excludeId;
 
-    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    if (
+      !Number.isFinite(longitude) ||
+      !Number.isFinite(latitude) ||
+      longitude < -180 ||
+      longitude > 180 ||
+      latitude < -90 ||
+      latitude > 90
+    ) {
       return res.status(400).json({
         message: "Tọa độ không hợp lệ",
+      });
+    }
+
+    if (!Number.isFinite(distance) || distance <= 0 || distance > 100_000) {
+      return res.status(400).json({
+        message: "Khoảng cách phải nằm trong khoảng 1 đến 100000 mét",
       });
     }
 
@@ -509,7 +696,7 @@ export const getNearbyWorkshops = async (req, res) => {
     }
 
     const workshops = await Workshop.find(query)
-      .select("title thumbnail price location category")
+      .select("title thumbnail price location categories")
       .limit(8);
 
     return res.status(200).json({
@@ -541,16 +728,18 @@ export const getWorkshops = async (req, res) => {
     };
 
     if (search) {
+      const escapedSearch = escapeRegExp(search);
+
       filter.$or = [
         {
           title: {
-            $regex: search,
+            $regex: escapedSearch,
             $options: "i",
           },
         },
         {
           description: {
-            $regex: search,
+            $regex: escapedSearch,
             $options: "i",
           },
         },
@@ -558,13 +747,13 @@ export const getWorkshops = async (req, res) => {
     }
 
     if (category) {
-      filter.category = category;
+      filter.categories = String(category).trim();
     }
 
     if (maxPrice !== undefined) {
       const numericMaxPrice = Number(maxPrice);
 
-      if (Number.isFinite(numericMaxPrice)) {
+      if (Number.isFinite(numericMaxPrice) && numericMaxPrice >= 0) {
         filter.price = {
           $lte: numericMaxPrice,
         };
@@ -573,13 +762,21 @@ export const getWorkshops = async (req, res) => {
 
     if (address) {
       filter["location.address"] = {
-        $regex: address,
+        $regex: escapeRegExp(address),
         $options: "i",
       };
     }
 
-    const currentPage = Math.max(Number(page), 1);
-    const pageSize = Math.min(Math.max(Number(limit), 1), 50);
+    const numericPage = Number(page);
+    const numericLimit = Number(limit);
+
+    const currentPage =
+      Number.isInteger(numericPage) && numericPage > 0 ? numericPage : 1;
+
+    const pageSize =
+      Number.isInteger(numericLimit) && numericLimit > 0
+        ? Math.min(numericLimit, 50)
+        : 12;
 
     const [workshops, total] = await Promise.all([
       Workshop.find(filter)

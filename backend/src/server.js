@@ -10,6 +10,7 @@ import { v2 as cloudinary } from "cloudinary";
 import workshopRoutes from "./routes/workshopRoutes.js";
 import hostRoutes from "./routes/hostRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
+import promotionRoutes from "./routes/promotionRoutes.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use("/api/users", userRoute);
 app.use("/api/host", hostRoutes);
 
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/promotions", promotionRoutes);
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`server bắt đầu trên cổng ${PORT}`);

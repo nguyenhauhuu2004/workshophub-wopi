@@ -18,23 +18,29 @@ const mediaSchema = new mongoose.Schema(
   },
   { _id: false },
 );
+
 const workshopScheduleSchema = new mongoose.Schema({
-  date: {
-    type: String,
+  startAt: {
+    type: Date,
     required: true,
-    trim: true,
   },
 
-  time: {
-    type: String,
+  seatsTotal: {
+    type: Number,
     required: true,
-    trim: true,
+    min: 1,
   },
 
   spotsLeft: {
     type: Number,
     required: true,
     min: 0,
+    validate: {
+      validator(value) {
+        return value <= this.seatsTotal;
+      },
+      message: "Số chỗ còn lại không thể lớn hơn tổng số ghế",
+    },
   },
 });
 
@@ -68,9 +74,20 @@ const locationSchema = new mongoose.Schema(
         required: true,
         validate: {
           validator(value) {
-            return Array.isArray(value) && value.length === 2;
+            if (!Array.isArray(value) || value.length !== 2) return false;
+
+            const [longitude, latitude] = value;
+
+            return (
+              Number.isFinite(longitude) &&
+              Number.isFinite(latitude) &&
+              longitude >= -180 &&
+              longitude <= 180 &&
+              latitude >= -90 &&
+              latitude <= 90
+            );
           },
-          message: "Tọa độ phải có dạng [longitude, latitude]",
+          message: "Tọa độ phải có dạng [longitude, latitude] hợp lệ",
         },
       },
     },
@@ -92,9 +109,18 @@ const workshopSchema = new mongoose.Schema(
       trim: true,
     },
 
-    category: {
-      type: String,
+    categories: {
+      type: [
+        {
+          type: String,
+          trim: true,
+        },
+      ],
       required: true,
+      validate: {
+        validator: (value) => value.length > 0,
+        message: "Workshop phải có ít nhất một danh mục",
+      },
     },
 
     description: {
@@ -102,9 +128,31 @@ const workshopSchema = new mongoose.Schema(
       required: true,
     },
 
-    thumbnail: mediaSchema,
-    gallery: [mediaSchema],
-    video: mediaSchema,
+    thumbnail: {
+      type: mediaSchema,
+      validate: {
+        validator: (value) => value == null || value.resourceType === "image",
+        message: "Thumbnail phải là hình ảnh",
+      },
+    },
+
+    gallery: {
+      type: [mediaSchema],
+      default: [],
+      validate: {
+        validator: (items) =>
+          items.every((item) => item.resourceType === "image"),
+        message: "Gallery chỉ được chứa hình ảnh",
+      },
+    },
+
+    video: {
+      type: mediaSchema,
+      validate: {
+        validator: (value) => value == null || value.resourceType === "video",
+        message: "Video phải có resourceType là video",
+      },
+    },
 
     highlights: [String],
     includes: [String],
@@ -117,12 +165,6 @@ const workshopSchema = new mongoose.Schema(
 
     duration: String,
 
-    seatsTotal: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-
     schedules: {
       type: [workshopScheduleSchema],
       default: [],
@@ -132,30 +174,24 @@ const workshopSchema = new mongoose.Schema(
       type: locationSchema,
       required: true,
     },
-    category: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
 
     status: {
       type: String,
-      enum: ["draft", "published"],
+      enum: ["draft", "published", "cancelled", "archived"],
       default: "published",
     },
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5,
-    },
+    // averageRating: {
+    //   type: Number,
+    //   default: 0,
+    //   min: 0,
+    //   max: 5,
+    // },
 
-    reviewCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
+    // reviewCount: {
+    //   type: Number,
+    //   default: 0,
+    //   min: 0,
+    // },
   },
   {
     timestamps: true,

@@ -1,49 +1,36 @@
 import mongoose from "mongoose";
 
-const promotionCampaignSchema =
-  new mongoose.Schema(
-    {
-      host: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
-      },
+const promotionCampaignSchema = new mongoose.Schema(
+  {
+    host: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
-      workshop: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Workshop",
-        required: true,
-        index: true,
-      },
+    workshop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workshop",
+      required: true,
+      index: true,
+    },
 
-      packageCode: {
+    promotionPackage: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PromotionPackage",
+      required: true,
+    },
+
+    packageSnapshot: {
+      code: {
         type: String,
         required: true,
       },
 
-      packageName: {
+      name: {
         type: String,
         required: true,
-      },
-
-      placement: {
-        type: String,
-        enum: [
-          "homepage",
-          "search",
-          "category",
-          "location",
-          "homepage_search",
-        ],
-        required: true,
-        index: true,
-      },
-
-      durationDays: {
-        type: Number,
-        required: true,
-        min: 1,
       },
 
       price: {
@@ -52,76 +39,88 @@ const promotionCampaignSchema =
         min: 0,
       },
 
-      startAt: {
-        type: Date,
+      durationDays: {
+        type: Number,
         required: true,
-        index: true,
+        min: 1,
       },
 
-      endAt: {
-        type: Date,
+      placement: {
+        type: String,
+        enum: ["homepage", "search_top", "category_top"],
         required: true,
-        index: true,
       },
-
-      status: {
-        type: String,
-        enum: [
-          "pending_payment",
-          "scheduled",
-          "active",
-          "completed",
-          "cancelled",
-          "rejected",
-        ],
-        default: "pending_payment",
-        index: true,
-      },
-
-      paymentStatus: {
-        type: String,
-        enum: [
-          "unpaid",
-          "pending",
-          "paid",
-          "failed",
-          "refunded",
-        ],
-        default: "unpaid",
-      },
-
-      paymentReference: String,
-
-      impressions: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      clicks: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      attributedBookings: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      attributedRevenue: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      rejectionReason: String,
     },
-    {
-      timestamps: true,
+
+    startAt: {
+      type: Date,
+      required: true,
+      index: true,
     },
-  );
+
+    endAt: {
+      type: Date,
+      required: true,
+      index: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["scheduled", "active", "completed", "cancelled"],
+      required: true,
+      index: true,
+    },
+
+    paymentProvider: {
+      type: String,
+      enum: ["mock"],
+      default: "mock",
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed", "refunded"],
+      default: "pending",
+      index: true,
+    },
+
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    activatedAt: {
+      type: Date,
+      default: null,
+    },
+
+    impressions: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    clicks: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    attributedBookings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+promotionCampaignSchema.index({
+  host: 1,
+  createdAt: -1,
+});
 
 promotionCampaignSchema.index({
   workshop: 1,

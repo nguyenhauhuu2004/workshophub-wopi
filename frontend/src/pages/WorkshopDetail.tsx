@@ -1,90 +1,215 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import "@goongmaps/goong-js/dist/goong-js.css";
+
+import goongjs, {
+  type Map as GoongMap,
+  type Marker as GoongMarker,
+} from "@goongmaps/goong-js";
+
+import { CalendarDays, Clock3, Loader2, MapPin, Users } from "lucide-react";
+
 import axios from "axios";
+import { toast } from "sonner";
+import { useNavigate, useParams } from "react-router";
+
+import BookingCard from "@/components/BookingCard";
+
+import type { BookingCardData, BookingSession } from "@/types/booking";
 
 import ThumbnailSlider, {
   type ProductMedia,
 } from "@/components/thumnailslider";
 
-import BookingCard, {
-  type BookingData,
-  type BookingSession,
-} from "@/components/BookingCard";
-
-import WorkshopContent from "@/components/WorkshopContent";
 import WorkshopReviews from "@/components/WorkshopReviews";
-
-import WorkshopMap, { type WorkshopLocation } from "@/components/workshopmap";
-
 import { workshopService } from "@/services/workshopService";
+import { bookingService } from "@/services/bookingService";
 
-export type WorkshopMedia = {
-  url: string;
-  publicId: string;
-  resourceType: "image" | "video";
+import type { Workshop } from "@/types/workshop";
+
+const DEFAULT_MAP_ZOOM = 15;
+const NEARBY_DISTANCE = 10_000;
+
+// const formatScheduleDate = (startAt: string) => {
+//   const date = new Date(startAt);
+
+//   if (Number.isNaN(date.getTime())) {
+//     return "Không xác định";
+//   }
+
+//   return date.toLocaleDateString("vi-VN", {
+//     weekday: "short",
+//     day: "2-digit",
+//     month: "2-digit",
+//     year: "numeric",
+//   });
+// };
+
+// const formatScheduleTime = (startAt: string) => {
+//   const date = new Date(startAt);
+
+//   if (Number.isNaN(date.getTime())) {
+//     return "";
+//   }
+
+//   return date.toLocaleTimeString("vi-VN", {
+//     hour: "2-digit",
+//     minute: "2-digit",
+//   });
+// };
+
+type GoongWorkshopMapProps = {
+  workshop: Workshop;
+  nearbyWorkshops: Workshop[];
+  onWorkshopClick: (workshopId: string) => void;
 };
 
-export type WorkshopSchedule = {
-  _id?: string;
-  date: string;
-  time: string;
-  spotsLeft: number;
-};
+function GoongWorkshopMap({
+  workshop,
+  nearbyWorkshops,
+  onWorkshopClick,
+}: GoongWorkshopMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
-export type WorkshopDetailData = {
-  _id: string;
-  title: string;
-  category: string;
-  description: string;
+  const mapRef = useRef<GoongMap | null>(null);
 
-  highlights: string[];
-  includes: string[];
+  const onWorkshopClickRef = useRef(onWorkshopClick);
 
-  thumbnail: WorkshopMedia | null;
-  gallery: WorkshopMedia[];
-  video: WorkshopMedia | null;
+  const [mapError, setMapError] = useState<string | null>(null);
 
-  price: number;
-  duration: string;
-  seatsTotal: number;
-  level: string;
+  useEffect(() => {
+    onWorkshopClickRef.current = onWorkshopClick;
+  }, [onWorkshopClick]);
 
-  averageRating?: number;
-  reviewCount?: number;
+  useEffect(() => {
+    const container = containerRef.current;
 
-  schedules: WorkshopSchedule[];
+    if (!container) {
+      return;
+    }
 
-  location: {
-    address: string;
-    notes?: string;
+    const accessToken = import.meta.env.VITE_GOONG_MAPTILES_KEY;
 
-    coordinates: {
-      type: "Point";
-      coordinates: [number, number];
+    if (!accessToken) {
+      setMapError("Chưa cấu hình VITE_GOONG_MAPTILES_KEY");
+
+      return;
+    }
+
+    const coordinates = workshop.location.coordinates.coordinates;
+
+    const [longitude, latitude] = coordinates;
+
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      setMapError("Tọa độ workshop không hợp lệ");
+
+      return;
+    }
+
+    setMapError(null);
+    goongjs.accessToken = accessToken;
+
+    const map = new goongjs.Map({
+      container,
+      style: "https://tiles.goong.io/assets/goong_map_web.json",
+      center: [longitude, latitude],
+      zoom: DEFAULT_MAP_ZOOM,
+    });
+
+    map.addControl(new goongjs.NavigationControl(), "top-right");
+
+    mapRef.current = map;
+
+    const bounds = new goongjs.LngLatBounds();
+
+    const markers: GoongMarker[] = [];
+
+    const addMarker = (item: Workshop, isCurrent: boolean) => {
+      const [itemLongitude, itemLatitude] =
+        item.location.coordinates.coordinates;
+
+      if (!Number.isFinite(itemLongitude) || !Number.isFinite(itemLatitude)) {
+        return;
+      }
+
+      const popup = new goongjs.Popup({
+        offset: 24,
+      }).setText(`${item.title} — ${item.location.address}`);
+
+      const marker = new goongjs.Marker({
+        color: isCurrent ? "#214c36" : "#d97706",
+      })
+        .setLngLat([itemLongitude, itemLatitude])
+        .setPopup(popup)
+        .addTo(map);
+
+      if (!isCurrent) {
+        const element = marker.getElement();
+
+        element.style.cursor = "pointer";
+
+        element.addEventListener("click", () => {
+          onWorkshopClickRef.current(item._id);
+        });
+      }
+
+      bounds.extend([itemLongitude, itemLatitude]);
+
+      markers.push(marker);
     };
-  };
 
-  host?: {
-    _id: string;
-    displayName: string;
-    avatarUrl?: string;
-  };
-};
+    addMarker(workshop, true);
+
+    nearbyWorkshops.forEach((item) => {
+      addMarker(item, false);
+    });
+
+    if (nearbyWorkshops.length > 0 && !bounds.isEmpty()) {
+      map.fitBounds(bounds, {
+        padding: 70,
+        maxZoom: DEFAULT_MAP_ZOOM,
+      });
+    }
+
+    return () => {
+      markers.forEach((marker) => {
+        marker.remove();
+      });
+
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [workshop, nearbyWorkshops]);
+
+  if (mapError) {
+    return (
+      <div className="mt-5 flex h-[420px] items-center justify-center rounded-2xl border bg-muted px-6 text-center text-sm text-muted-foreground">
+        {mapError}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="mt-5 h-[420px] w-full overflow-hidden rounded-2xl border"
+    />
+  );
+}
 
 export function WorkshopDetail() {
   const { id } = useParams<{ id: string }>();
+
   const navigate = useNavigate();
 
-  const [workshop, setWorkshop] = useState<WorkshopDetailData | null>(null);
+  const [workshop, setWorkshop] = useState<Workshop | null>(null);
 
-  const [nearbyWorkshops, setNearbyWorkshops] = useState<WorkshopDetailData[]>(
-    [],
-  );
+  const [nearbyWorkshops, setNearbyWorkshops] = useState<Workshop[]>([]);
 
   const [loading, setLoading] = useState(true);
+
   const [booking, setBooking] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,32 +226,34 @@ export function WorkshopDetail() {
         setLoading(true);
         setError(null);
 
-        const workshopData = await workshopService.getWorkshop(id);
+        const workshopData = await workshopService.getWorkshopById(id);
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         setWorkshop(workshopData);
 
-        const coordinates = workshopData.location?.coordinates?.coordinates;
+        const [longitude, latitude] =
+          workshopData.location.coordinates.coordinates;
 
-        const longitude = coordinates?.[0];
-        const latitude = coordinates?.[1];
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+          return;
+        }
 
-        if (typeof longitude === "number" && typeof latitude === "number") {
-          try {
-            const nearby = await workshopService.getNearbyWorkshops({
-              longitude,
-              latitude,
-              distance: 10_000,
-              excludeId: workshopData._id,
-            });
+        try {
+          const nearby = await workshopService.getNearbyWorkshops({
+            longitude,
+            latitude,
+            distance: NEARBY_DISTANCE,
+            excludeId: workshopData._id,
+          });
 
-            if (active) {
-              setNearbyWorkshops(nearby ?? []);
-            }
-          } catch (nearbyError) {
-            console.error("Không thể tải workshop gần đây:", nearbyError);
+          if (active) {
+            setNearbyWorkshops(nearby);
           }
+        } catch (nearbyError) {
+          console.error("Không thể tải workshop gần đây:", nearbyError);
         }
       } catch (loadError) {
         console.error("Load workshop error:", loadError);
@@ -149,7 +276,9 @@ export function WorkshopDetail() {
   }, [id]);
 
   const media = useMemo<ProductMedia[]>(() => {
-    if (!workshop) return [];
+    if (!workshop) {
+      return [];
+    }
 
     const items: ProductMedia[] = [];
 
@@ -162,7 +291,7 @@ export function WorkshopDetail() {
       });
     }
 
-    workshop.gallery?.forEach((item, index) => {
+    workshop.gallery.forEach((item, index) => {
       items.push({
         id: item.publicId || `gallery-${index}`,
         type: "image",
@@ -171,91 +300,59 @@ export function WorkshopDetail() {
       });
     });
 
-    // if (workshop.video?.url) {
-    //   items.push({
-    //     id: workshop.video.publicId,
-    //     type: "video",
-    //     src: workshop.video.url,
-    //     poster: workshop.thumbnail?.url,
-    //     alt: `Video giới thiệu ${workshop.title}`,
-    //     autoPlay: false,
-    //     muted: false,
-    //     loop: false,
-    //   });
-    // }
+    if (workshop.video?.url) {
+      items.push({
+        id: workshop.video.publicId,
+        type: "video",
+        src: workshop.video.url,
+        poster: workshop.thumbnail?.url,
+        alt: `Video giới thiệu ${workshop.title}`,
+        autoPlay: false,
+        muted: false,
+        loop: false,
+      });
+    }
 
     return items;
   }, [workshop]);
-
   const sessions = useMemo<BookingSession[]>(() => {
-    if (!workshop?.schedules) {
+    if (!workshop) {
       return [];
     }
 
-    return workshop.schedules.map((session, index) => ({
-      id: session._id ?? `schedule-${index}`,
-      date: session.date,
-      time: session.time,
-      remaining: session.spotsLeft,
+    return workshop.schedules.map((schedule, index) => ({
+      id: schedule._id ?? `schedule-${index}`,
+
+      startAt: schedule.startAt,
+
+      seatsTotal: schedule.seatsTotal,
+
+      spotsLeft: schedule.spotsLeft,
     }));
   }, [workshop]);
 
-  const currentWorkshop = useMemo<WorkshopLocation | null>(() => {
-    if (!workshop) return null;
-
-    const coordinates = workshop.location?.coordinates?.coordinates;
-
-    if (!Array.isArray(coordinates) || coordinates.length !== 2) {
-      return null;
+  const maximumSeats = useMemo(() => {
+    if (!workshop?.schedules.length) {
+      return 0;
     }
 
-    const [longitude, latitude] = coordinates;
-
-    return {
-      id: workshop._id,
-      title: workshop.title,
-      address: workshop.location.address,
-      latitude,
-      longitude,
-      image: workshop.thumbnail?.url ?? "",
-      price: workshop.price,
-    };
+    return Math.max(
+      ...workshop.schedules.map((schedule) => schedule.seatsTotal),
+    );
   }, [workshop]);
 
-  const nearbyMapData = useMemo<WorkshopLocation[]>(() => {
-    return nearbyWorkshops.flatMap((item) => {
-      const coordinates = item.location?.coordinates?.coordinates;
-
-      if (!Array.isArray(coordinates) || coordinates.length !== 2) {
-        return [];
-      }
-
-      const [longitude, latitude] = coordinates;
-
-      return [
-        {
-          id: item._id,
-          title: item.title,
-          address: item.location.address,
-          latitude,
-          longitude,
-          image: item.thumbnail?.url ?? "",
-          price: item.price,
-        },
-      ];
-    });
-  }, [nearbyWorkshops]);
-
-  const handleBook = async (bookingData: BookingData) => {
-    if (!workshop || booking) return;
+  const handleBook = async (bookingData: BookingCardData) => {
+    if (!workshop || booking) {
+      return;
+    }
 
     try {
       setBooking(true);
 
-      const result = await workshopService.createBooking({
+      const result = await bookingService.createBooking({
         workshopId: workshop._id,
 
-        sessionId: String(bookingData.session.id),
+        sessionId: bookingData.session.id,
 
         quantity: bookingData.quantity,
       });
@@ -263,23 +360,26 @@ export function WorkshopDetail() {
       toast.success(result.message ?? "Đặt chỗ thành công");
 
       setWorkshop((current) => {
-        if (!current) return current;
+        if (!current) {
+          return current;
+        }
 
         return {
           ...current,
 
-          schedules: current.schedules.map((session) =>
-            session._id === String(bookingData.session.id)
-              ? {
-                  ...session,
+          schedules: current.schedules.map((schedule, index) => {
+            const scheduleId = schedule._id ?? `schedule-${index}`;
 
-                  spotsLeft: Math.max(
-                    0,
-                    session.spotsLeft - bookingData.quantity,
-                  ),
-                }
-              : session,
-          ),
+            if (scheduleId !== bookingData.session.id) {
+              return schedule;
+            }
+
+            return {
+              ...schedule,
+
+              spotsLeft: Math.max(0, schedule.spotsLeft - bookingData.quantity),
+            };
+          }),
         };
       });
     } catch (error) {
@@ -296,7 +396,6 @@ export function WorkshopDetail() {
       setBooking(false);
     }
   };
-
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -340,89 +439,117 @@ export function WorkshopDetail() {
           )}
 
           <section className="mt-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                {workshop.category}
-              </span>
-
-              <span className="rounded-full bg-muted px-3 py-1 text-sm">
-                {workshop.level}
-              </span>
-
-              {(workshop.reviewCount ?? 0) > 0 && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
-                  ★ {(workshop.averageRating ?? 0).toFixed(1)}
-                  {" · "}
-                  {workshop.reviewCount} đánh giá
+            <div className="flex flex-wrap gap-2">
+              {workshop.categories.map((category) => (
+                <span
+                  key={category}
+                  className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
+                >
+                  {category}
                 </span>
-              )}
+              ))}
             </div>
 
             <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
               {workshop.title}
             </h1>
 
-            {workshop.host && (
-              <div className="mt-4 flex items-center gap-3">
-                {workshop.host.avatarUrl ? (
-                  <img
-                    src={workshop.host.avatarUrl}
-                    alt={workshop.host.displayName}
-                    className="size-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-10 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
-                    {workshop.host.displayName?.charAt(0).toUpperCase()}
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Được tổ chức bởi
-                  </p>
-
-                  <p className="font-medium">{workshop.host.displayName}</p>
-                </div>
-              </div>
-            )}
-
             <p className="mt-8 whitespace-pre-line text-base leading-7 text-muted-foreground">
               {workshop.description}
             </p>
           </section>
 
-          <WorkshopContent
-            highlights={workshop.highlights}
-            includes={workshop.includes}
-            duration={workshop.duration}
-            level={workshop.level}
-            seatsTotal={workshop.seatsTotal}
-          />
-
-          {currentWorkshop && (
-            <section className="mt-10 border-t pt-8">
-              <h2 className="text-2xl font-semibold">Vị trí workshop</h2>
-
-              <p className="mt-2 text-sm text-muted-foreground">
-                {workshop.location.address}
+          <section className="mt-8 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border p-4">
+              <Clock3 className="size-5 text-primary" />
+              <p className="mt-3 text-xs text-muted-foreground">Thời lượng</p>
+              <p className="mt-1 font-semibold">
+                {workshop.duration || "Chưa cập nhật"}
               </p>
+            </div>
 
-              {workshop.location.notes && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Ghi chú: {workshop.location.notes}
-                </p>
-              )}
+            <div className="rounded-2xl border p-4">
+              <Users className="size-5 text-primary" />
+              <p className="mt-3 text-xs text-muted-foreground">
+                Sức chứa tối đa
+              </p>
+              <p className="mt-1 font-semibold">
+                {maximumSeats > 0
+                  ? `${maximumSeats} người / lịch`
+                  : "Chưa cập nhật"}
+              </p>
+            </div>
 
-              <WorkshopMap
-                currentWorkshop={currentWorkshop}
-                nearbyWorkshops={nearbyMapData}
-                className="mt-5"
-                onWorkshopClick={(selectedWorkshop) => {
-                  navigate(`/workshops/${selectedWorkshop.id}`);
-                }}
-              />
+            <div className="rounded-2xl border p-4">
+              <CalendarDays className="size-5 text-primary" />
+              <p className="mt-3 text-xs text-muted-foreground">Lịch tổ chức</p>
+              <p className="mt-1 font-semibold">
+                {workshop.schedules.length} lịch
+              </p>
+            </div>
+          </section>
+
+          {workshop.highlights.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-2xl font-semibold">Điểm nổi bật</h2>
+
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {workshop.highlights.map((highlight) => (
+                  <li
+                    key={highlight}
+                    className="rounded-xl bg-muted px-4 py-3 text-sm"
+                  >
+                    {highlight}
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
+
+          {workshop.includes.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-2xl font-semibold">Workshop bao gồm</h2>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {workshop.includes.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border px-3 py-1.5 text-sm"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="mt-10 border-t pt-8">
+            <div className="flex items-start gap-3">
+              <MapPin className="mt-1 size-5 shrink-0 text-primary" />
+
+              <div>
+                <h2 className="text-2xl font-semibold">Vị trí workshop</h2>
+
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {workshop.location.address}
+                </p>
+
+                {workshop.location.notes && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Ghi chú: {workshop.location.notes}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <GoongWorkshopMap
+              workshop={workshop}
+              nearbyWorkshops={nearbyWorkshops}
+              onWorkshopClick={(workshopId) => {
+                navigate(`/workshops/${workshopId}`);
+              }}
+            />
+          </section>
 
           <WorkshopReviews workshopId={workshop._id} />
         </div>
@@ -449,3 +576,5 @@ export function WorkshopDetail() {
     </main>
   );
 }
+
+export default WorkshopDetail;

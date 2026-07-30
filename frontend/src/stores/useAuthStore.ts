@@ -120,7 +120,7 @@ export const useAuthStore = create<AuthState>()(
       name: "auth-stores",
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
+        // accessToken: state.accessToken,
       }), //chỉ presis lại user
     },
   ),

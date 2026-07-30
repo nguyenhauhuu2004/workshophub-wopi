@@ -87,6 +87,6 @@ router.patch("/:id", protectedRoute, updateWorkshop);
 /*
  * Xóa media khỏi Cloudinary.
  */
-router.delete("/media", protectedRoute, deleteMediaController);
+// router.delete("/media", protectedRoute, deleteMediaController);
 
 export default router;
