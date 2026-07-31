@@ -1,4 +1,9 @@
 import api from "@/lib/axios";
+// import type {
+//   GoongGeocodeResult,
+//   GoongPlaceDetail,
+//   GoongPlacePrediction,
+// } from "@/types/goong";
 
 import type {
   GoongPlacePrediction,
@@ -8,7 +13,14 @@ import type {
   WorkshopLocation,
   WorkshopSchedule,
   WorkshopStatus,
+  UpdateWorkshopPayload,
+  CreateWorkshopSchedulePayload,
 } from "@/types/workshop";
+
+import type {
+  GetWorkshopsResponse,
+  WorkshopSearchParams,
+} from "@/types/workshopQuery";
 
 export type GetWorkshopsParams = {
   search?: string;
@@ -81,16 +93,46 @@ const buildWorkshopFormData = (data: WorkshopFormData): FormData => {
 };
 
 export const workshopService = {
+  updateWorkshop: async (
+    workshopId: string,
+    payload: UpdateWorkshopPayload,
+  ): Promise<Workshop> => {
+    const response = await api.patch(`/workshops/${workshopId}`, payload);
+
+    return response.data.workshop;
+  },
+
+  addWorkshopSchedule: async (
+    workshopId: string,
+    payload: CreateWorkshopSchedulePayload,
+  ): Promise<Workshop> => {
+    const response = await api.post(
+      `/workshops/${workshopId}/schedules`,
+      payload,
+    );
+
+    return response.data.workshop;
+  },
+  // getWorkshops: async (
+  //   params: GetWorkshopsParams = {},
+  // ): Promise<WorkshopListResponse> => {
+  //   const response = await api.get<WorkshopListResponse>("/workshops", {
+  //     params,
+  //   });
+
+  //   return response.data;
+  // },
   getWorkshops: async (
-    params: GetWorkshopsParams = {},
-  ): Promise<WorkshopListResponse> => {
-    const response = await api.get<WorkshopListResponse>("/workshops", {
+    params: WorkshopSearchParams = {},
+    signal?: AbortSignal,
+  ): Promise<GetWorkshopsResponse> => {
+    const response = await api.get("/workshops", {
       params,
+      signal,
     });
 
     return response.data;
   },
-
   getWorkshopById: async (workshopId: string): Promise<Workshop> => {
     const response = await api.get<WorkshopResponse>(
       `/workshops/${workshopId}`,
@@ -119,17 +161,17 @@ export const workshopService = {
     return response.data.workshop;
   },
 
-  updateWorkshop: async (
-    workshopId: string,
-    data: UpdateWorkshopData,
-  ): Promise<Workshop> => {
-    const response = await api.patch<WorkshopResponse>(
-      `/workshops/${workshopId}`,
-      data,
-    );
+  // updateWorkshop: async (
+  //   workshopId: string,
+  //   data: UpdateWorkshopData,
+  // ): Promise<Workshop> => {
+  //   const response = await api.patch<WorkshopResponse>(
+  //     `/workshops/${workshopId}`,
+  //     data,
+  //   );
 
-    return response.data.workshop;
-  },
+  //   return response.data.workshop;
+  // },
   searchPlaces: async (
     input: string,
     location?: string,

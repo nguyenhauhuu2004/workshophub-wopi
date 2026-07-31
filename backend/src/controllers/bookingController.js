@@ -590,3 +590,61 @@ export const checkInBooking = async (req, res) => {
     });
   }
 };
+
+export const completeBooking = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const bookingId = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Bạn chưa đăng nhập",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        message: "Booking không hợp lệ",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      host: userId,
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        message: "Không tìm thấy booking hoặc bạn không có quyền xử lý",
+      });
+    }
+
+    if (booking.status === "completed") {
+      return res.status(200).json({
+        message: "Booking đã hoàn thành trước đó",
+        booking,
+      });
+    }
+
+    if (booking.status !== "checked_in") {
+      return res.status(409).json({
+        message: "Chỉ booking đã check-in mới có thể hoàn thành",
+      });
+    }
+
+    booking.status = "completed";
+
+    await booking.save();
+
+    return res.status(200).json({
+      message: "Đã xác nhận hoàn thành workshop",
+      booking,
+    });
+  } catch (error) {
+    console.error("Complete booking error:", error);
+
+    return res.status(500).json({
+      message: error.message ?? "Không thể hoàn thành booking",
+    });
+  }
+};

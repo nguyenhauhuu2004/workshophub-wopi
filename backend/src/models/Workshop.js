@@ -180,18 +180,18 @@ const workshopSchema = new mongoose.Schema(
       enum: ["draft", "published", "cancelled", "archived"],
       default: "published",
     },
-    // averageRating: {
-    //   type: Number,
-    //   default: 0,
-    //   min: 0,
-    //   max: 5,
-    // },
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
 
-    // reviewCount: {
-    //   type: Number,
-    //   default: 0,
-    //   min: 0,
-    // },
+    reviewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,

@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  addWorkshopSchedule,
   createWorkshop,
   deleteMediaController,
   getGoongPlaceDetail,
@@ -12,81 +13,105 @@ import {
   updateWorkshop,
 } from "../controllers/workshopController.js";
 
-import { protectedRoute, isHost } from "../middlewares/authMiddleware.js";
+import { isHost, protectedRoute } from "../middlewares/authMiddleware.js";
+
 import { workshopUpload } from "../middlewares/workshopUploadMiddleware.js";
 
 import {
   createWorkshopReview,
+  deleteWorkshopReview,
+  getWorkshopReviewEligibility,
   getWorkshopReviews,
+  updateWorkshopReview,
 } from "../controllers/workshopReviewController.js";
+
+import { uploadWorkshopReviewImages } from "../middlewares/workshopReviewUploadMiddleware.js";
 
 const router = express.Router();
 
 /*
- * Goong Map API
+ * Goong Map API.
  */
 router.get("/goong/autocomplete", searchGoongPlaces);
+
 router.get("/goong/place-detail", getGoongPlaceDetail);
+
 router.get("/goong/reverse-geocode", reverseGoongGeocode);
 
 /*
- * Workshop public routes
- *
- * Phải đặt /nearby trước /:id.
- * Nếu đặt sau /:id thì Express có thể hiểu "nearby" là id.
+ * Route cố định đặt trước /:id.
  */
 router.get("/nearby", getNearbyWorkshops);
 
-router.get("/:id/reviews", getWorkshopReviews);
-
-router.post("/:id/reviews", protectedRoute, createWorkshopReview);
-
-router.get("/", getWorkshops);
-router.get("/:id", getWorkshopById);
+router.delete("/media", protectedRoute, deleteMediaController);
 
 /*
- * Tạo workshop và upload toàn bộ media trong cùng một request.
- *
- * req.files sẽ có dạng:
- * {
- *   thumbnail: [file],
- *   gallery: [file, file, ...],
- *   video: [file]
- * }
+ * Tạo workshop.
  */
 router.post(
   "/",
   protectedRoute,
   isHost,
+
   workshopUpload.fields([
     {
       name: "thumbnail",
       maxCount: 1,
     },
+
     {
       name: "gallery",
       maxCount: 10,
     },
+
     {
       name: "video",
       maxCount: 1,
     },
   ]),
+
   createWorkshop,
 );
 
-/*
- * Cập nhật workshop.
- *
- * Phiên bản hiện tại chỉ cập nhật dữ liệu JSON.
- * Nếu sau này cần thay thumbnail/gallery/video khi update,
- * route này cũng cần thêm workshopUpload.fields(...).
- */
-router.patch("/:id", protectedRoute, updateWorkshop);
+router.get(
+  "/:id/reviews/eligibility",
+  protectedRoute,
+  getWorkshopReviewEligibility,
+);
+
+router.get("/:id/reviews", getWorkshopReviews);
+
+router.post(
+  "/:id/reviews",
+  protectedRoute,
+  uploadWorkshopReviewImages,
+  createWorkshopReview,
+);
+
+router.patch(
+  "/:id/reviews/:reviewId",
+  protectedRoute,
+  uploadWorkshopReviewImages,
+  updateWorkshopReview,
+);
+
+router.delete("/:id/reviews/:reviewId", protectedRoute, deleteWorkshopReview);
 
 /*
- * Xóa media khỏi Cloudinary.
+ * Thêm lịch mới.
  */
-// router.delete("/media", protectedRoute, deleteMediaController);
+router.post("/:id/schedules", protectedRoute, isHost, addWorkshopSchedule);
+
+/*
+ * Chỉnh sửa workshop.
+ */
+router.patch("/:id", protectedRoute, isHost, updateWorkshop);
+
+/*
+ * Danh sách và chi tiết.
+ */
+router.get("/", getWorkshops);
+
+router.get("/:id", getWorkshopById);
 
 export default router;

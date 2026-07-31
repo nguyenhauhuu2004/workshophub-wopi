@@ -1,8 +1,18 @@
+import mongoose from "mongoose";
+
 import Workshop from "../models/Workshop.js";
+
 import {
   deleteWorkshopMedia,
   uploadWorkshopMediaFromBuffer,
 } from "../services/cloudinaryService.js";
+
+const WORKSHOP_STATUSES = new Set([
+  "draft",
+  "published",
+  "cancelled",
+  "archived",
+]);
 
 const parseJSONField = (value, fallback) => {
   if (value === undefined || value === null || value === "") {
@@ -19,13 +29,6 @@ const parseJSONField = (value, fallback) => {
     return fallback;
   }
 };
-
-const WORKSHOP_STATUSES = new Set([
-  "draft",
-  "published",
-  "cancelled",
-  "archived",
-]);
 
 const normalizeStringArray = (value) => {
   const parsedValue = parseJSONField(value, []);
@@ -69,14 +72,13 @@ const normalizeSchedules = (value) => {
         : Number(schedule.spotsLeft);
 
     return {
-      ...(schedule?._id ? { _id: schedule._id } : {}),
       startAt: schedule?.startAt,
       seatsTotal,
       spotsLeft,
     };
   });
 
-  const isValid = schedules.every((schedule) => {
+  const valid = schedules.every((schedule) => {
     const startAt = new Date(schedule.startAt);
 
     return (
@@ -89,11 +91,8 @@ const normalizeSchedules = (value) => {
     );
   });
 
-  return isValid ? schedules : null;
+  return valid ? schedules : null;
 };
-
-const escapeRegExp = (value) =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeMedia = (result) => {
   if (!result) {
@@ -108,15 +107,52 @@ const normalizeMedia = (result) => {
 };
 
 const cleanupUploadedMedia = async (mediaList) => {
-  if (!mediaList.length) {
+  const validMedia = mediaList.filter((media) => media?.publicId);
+
+  if (validMedia.length === 0) {
     return;
   }
 
   await Promise.allSettled(
-    mediaList.map((media) =>
+    validMedia.map((media) =>
       deleteWorkshopMedia(media.publicId, media.resourceType),
     ),
   );
+};
+
+const escapeRegExp = (value) => {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+const validateCoordinates = (location) => {
+  const coordinates = location?.coordinates?.coordinates;
+
+  if (
+    !location?.address?.trim() ||
+    !Array.isArray(coordinates) ||
+    coordinates.length !== 2
+  ) {
+    return null;
+  }
+
+  const longitude = Number(coordinates[0]);
+  const latitude = Number(coordinates[1]);
+
+  if (
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(latitude) ||
+    longitude < -180 ||
+    longitude > 180 ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    return null;
+  }
+
+  return {
+    longitude,
+    latitude,
+  };
 };
 
 export const createWorkshop = async (req, res) => {
@@ -134,15 +170,21 @@ export const createWorkshop = async (req, res) => {
     const files = req.files ?? {};
 
     const thumbnailFile = files.thumbnail?.[0];
+
     const galleryFiles = files.gallery ?? [];
+
     const videoFile = files.video?.[0];
 
     const { title, description, price, duration, status } = req.body;
 
     const categories = normalizeCategories(req.body.categories);
+
     const highlights = normalizeStringArray(req.body.highlights);
+
     const includes = normalizeStringArray(req.body.includes);
+
     const schedules = normalizeSchedules(req.body.schedules);
+
     const location = parseJSONField(req.body.location, null);
 
     if (!title?.trim()) {
@@ -151,7 +193,7 @@ export const createWorkshop = async (req, res) => {
       });
     }
 
-    if (!categories.length) {
+    if (categories.length === 0) {
       return res.status(400).json({
         message: "Danh mục workshop là bắt buộc",
       });
@@ -169,30 +211,11 @@ export const createWorkshop = async (req, res) => {
       });
     }
 
-    if (
-      !location?.address?.trim() ||
-      !Array.isArray(location?.coordinates?.coordinates) ||
-      location.coordinates.coordinates.length !== 2
-    ) {
+    const validCoordinates = validateCoordinates(location);
+
+    if (!validCoordinates) {
       return res.status(400).json({
         message: "Thông tin địa điểm không hợp lệ",
-      });
-    }
-
-    const longitude = Number(location.coordinates.coordinates[0]);
-
-    const latitude = Number(location.coordinates.coordinates[1]);
-
-    if (
-      !Number.isFinite(longitude) ||
-      !Number.isFinite(latitude) ||
-      longitude < -180 ||
-      longitude > 180 ||
-      latitude < -90 ||
-      latitude > 90
-    ) {
-      return res.status(400).json({
-        message: "Tọa độ địa điểm không hợp lệ",
       });
     }
 
@@ -206,8 +229,7 @@ export const createWorkshop = async (req, res) => {
 
     if (!schedules) {
       return res.status(400).json({
-        message:
-          "Lịch workshop không hợp lệ: cần startAt, seatsTotal và spotsLeft hợp lệ",
+        message: "Lịch workshop không hợp lệ",
       });
     }
 
@@ -227,7 +249,9 @@ export const createWorkshop = async (req, res) => {
 
     const thumbnailResult = await uploadWorkshopMediaFromBuffer(thumbnailFile, {
       folder: "wopy/workshops/thumbnails",
+
       resource_type: "image",
+
       transformation: [
         {
           width: 1200,
@@ -242,13 +266,17 @@ export const createWorkshop = async (req, res) => {
 
     const thumbnail = normalizeMedia(thumbnailResult);
 
-    uploadedMedia.push(thumbnail);
+    if (thumbnail) {
+      uploadedMedia.push(thumbnail);
+    }
 
     const galleryResults = await Promise.all(
       galleryFiles.map((file) =>
         uploadWorkshopMediaFromBuffer(file, {
           folder: "wopy/workshops/gallery",
+
           resource_type: "image",
+
           transformation: [
             {
               width: 1600,
@@ -261,7 +289,7 @@ export const createWorkshop = async (req, res) => {
       ),
     );
 
-    const gallery = galleryResults.map(normalizeMedia);
+    const gallery = galleryResults.map(normalizeMedia).filter(Boolean);
 
     uploadedMedia.push(...gallery);
 
@@ -270,19 +298,26 @@ export const createWorkshop = async (req, res) => {
     if (videoFile) {
       const videoResult = await uploadWorkshopMediaFromBuffer(videoFile, {
         folder: "wopy/workshops/videos",
+
         resource_type: "video",
       });
 
       video = normalizeMedia(videoResult);
 
-      uploadedMedia.push(video);
+      if (video) {
+        uploadedMedia.push(video);
+      }
     }
+
+    const { longitude, latitude } = validCoordinates;
 
     const workshop = await Workshop.create({
       host: userId,
 
       title: title.trim(),
+
       categories,
+
       description: description.trim(),
 
       highlights,
@@ -293,13 +328,18 @@ export const createWorkshop = async (req, res) => {
       video,
 
       price: numericPrice,
+
       duration: String(duration ?? "").trim(),
 
       schedules,
 
       location: {
-        ...location,
         address: location.address.trim(),
+
+        placeId: String(location.placeId ?? "").trim(),
+
+        notes: String(location.notes ?? "").trim(),
+
         coordinates: {
           type: "Point",
           coordinates: [longitude, latitude],
@@ -311,6 +351,7 @@ export const createWorkshop = async (req, res) => {
 
     return res.status(201).json({
       message: "Tạo workshop thành công",
+
       workshop,
     });
   } catch (error) {
@@ -318,9 +359,16 @@ export const createWorkshop = async (req, res) => {
 
     await cleanupUploadedMedia(uploadedMedia);
 
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((item) => item.message);
+
+      return res.status(400).json({
+        message: messages.join(", "),
+      });
+    }
+
     return res.status(500).json({
-      message: "Không thể tạo workshop",
-      error: error.message,
+      message: error.message ?? "Không thể tạo workshop",
     });
   }
 };
@@ -328,6 +376,7 @@ export const createWorkshop = async (req, res) => {
 export const updateWorkshop = async (req, res) => {
   try {
     const userId = req.user?._id;
+    const workshopId = req.params.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -335,8 +384,14 @@ export const updateWorkshop = async (req, res) => {
       });
     }
 
+    if (!mongoose.isValidObjectId(workshopId)) {
+      return res.status(400).json({
+        message: "Workshop không hợp lệ",
+      });
+    }
+
     const workshop = await Workshop.findOne({
-      _id: req.params.id,
+      _id: workshopId,
       host: userId,
     });
 
@@ -346,20 +401,47 @@ export const updateWorkshop = async (req, res) => {
       });
     }
 
+    if (req.body.schedules !== undefined) {
+      return res.status(400).json({
+        message:
+          "Không được ghi đè toàn bộ lịch. Hãy sử dụng API thêm lịch riêng",
+      });
+    }
+
     const updates = {};
 
-    const allowedStringFields = ["title", "description", "duration"];
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim();
 
-    for (const field of allowedStringFields) {
-      if (req.body[field] !== undefined) {
-        updates[field] = String(req.body[field]).trim();
+      if (title.length < 5) {
+        return res.status(400).json({
+          message: "Tên workshop phải có ít nhất 5 ký tự",
+        });
       }
+
+      updates.title = title;
+    }
+
+    if (req.body.description !== undefined) {
+      const description = String(req.body.description).trim();
+
+      if (description.length < 30) {
+        return res.status(400).json({
+          message: "Mô tả workshop phải có ít nhất 30 ký tự",
+        });
+      }
+
+      updates.description = description;
+    }
+
+    if (req.body.duration !== undefined) {
+      updates.duration = String(req.body.duration).trim();
     }
 
     if (req.body.categories !== undefined) {
       const categories = normalizeCategories(req.body.categories);
 
-      if (!categories.length) {
+      if (categories.length === 0) {
         return res.status(400).json({
           message: "Workshop phải có ít nhất một danh mục",
         });
@@ -368,10 +450,12 @@ export const updateWorkshop = async (req, res) => {
       updates.categories = categories;
     }
 
-    for (const field of ["highlights", "includes"]) {
-      if (req.body[field] !== undefined) {
-        updates[field] = normalizeStringArray(req.body[field]);
-      }
+    if (req.body.highlights !== undefined) {
+      updates.highlights = normalizeStringArray(req.body.highlights);
+    }
+
+    if (req.body.includes !== undefined) {
+      updates.includes = normalizeStringArray(req.body.includes);
     }
 
     if (req.body.price !== undefined) {
@@ -386,46 +470,26 @@ export const updateWorkshop = async (req, res) => {
       updates.price = price;
     }
 
-    if (req.body.schedules !== undefined) {
-      const schedules = normalizeSchedules(req.body.schedules);
-
-      if (!schedules) {
-        return res.status(400).json({
-          message:
-            "Lịch workshop không hợp lệ: cần startAt, seatsTotal và spotsLeft hợp lệ",
-        });
-      }
-
-      updates.schedules = schedules;
-    }
-
     if (req.body.location !== undefined) {
       const location = parseJSONField(req.body.location, null);
 
-      const rawCoordinates = location?.coordinates?.coordinates;
+      const validCoordinates = validateCoordinates(location);
 
-      const longitude = Number(rawCoordinates?.[0]);
-      const latitude = Number(rawCoordinates?.[1]);
-
-      if (
-        !location?.address?.trim() ||
-        !Array.isArray(rawCoordinates) ||
-        rawCoordinates.length !== 2 ||
-        !Number.isFinite(longitude) ||
-        !Number.isFinite(latitude) ||
-        longitude < -180 ||
-        longitude > 180 ||
-        latitude < -90 ||
-        latitude > 90
-      ) {
+      if (!validCoordinates) {
         return res.status(400).json({
           message: "Thông tin địa điểm không hợp lệ",
         });
       }
 
+      const { longitude, latitude } = validCoordinates;
+
       updates.location = {
-        ...location,
         address: location.address.trim(),
+
+        placeId: String(location.placeId ?? "").trim(),
+
+        notes: String(location.notes ?? "").trim(),
+
         coordinates: {
           type: "Point",
           coordinates: [longitude, latitude],
@@ -434,23 +498,21 @@ export const updateWorkshop = async (req, res) => {
     }
 
     if (req.body.status !== undefined) {
-      if (!WORKSHOP_STATUSES.has(req.body.status)) {
+      const status = String(req.body.status);
+
+      if (!WORKSHOP_STATUSES.has(status)) {
         return res.status(400).json({
           message: "Trạng thái workshop không hợp lệ",
         });
       }
 
-      updates.status = req.body.status;
-    }
+      if (status === "published" && workshop.schedules.length === 0) {
+        return res.status(400).json({
+          message: "Workshop đã xuất bản phải có ít nhất một lịch",
+        });
+      }
 
-    const nextStatus = updates.status ?? workshop.status;
-
-    const nextSchedules = updates.schedules ?? workshop.schedules;
-
-    if (nextStatus === "published" && nextSchedules.length === 0) {
-      return res.status(400).json({
-        message: "Workshop đã xuất bản phải có ít nhất một lịch",
-      });
+      updates.status = status;
     }
 
     workshop.set(updates);
@@ -459,21 +521,146 @@ export const updateWorkshop = async (req, res) => {
 
     return res.status(200).json({
       message: "Cập nhật workshop thành công",
+
       workshop,
     });
   } catch (error) {
     console.error("Update workshop error:", error);
 
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((item) => item.message);
+
+      return res.status(400).json({
+        message: messages.join(", "),
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Dữ liệu workshop không hợp lệ",
+      });
+    }
+
     return res.status(500).json({
-      message: "Không thể cập nhật workshop",
-      error: error.message,
+      message: error.message ?? "Không thể cập nhật workshop",
+    });
+  }
+};
+
+export const addWorkshopSchedule = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    const workshopId = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Bạn chưa đăng nhập",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(workshopId)) {
+      return res.status(400).json({
+        message: "Workshop không hợp lệ",
+      });
+    }
+
+    const startAt = new Date(req.body.startAt);
+
+    const seatsTotal = Number(req.body.seatsTotal);
+
+    if (Number.isNaN(startAt.getTime())) {
+      return res.status(400).json({
+        message: "Ngày giờ bắt đầu không hợp lệ",
+      });
+    }
+
+    if (startAt.getTime() <= Date.now()) {
+      return res.status(400).json({
+        message: "Lịch mới phải nằm trong tương lai",
+      });
+    }
+
+    if (!Number.isInteger(seatsTotal) || seatsTotal < 1) {
+      return res.status(400).json({
+        message: "Số chỗ phải là số nguyên lớn hơn 0",
+      });
+    }
+
+    const workshop = await Workshop.findOne({
+      _id: workshopId,
+      host: userId,
+    });
+
+    if (!workshop) {
+      return res.status(404).json({
+        message: "Không tìm thấy workshop hoặc bạn không có quyền chỉnh sửa",
+      });
+    }
+
+    const duplicatedSchedule = workshop.schedules.some((schedule) => {
+      const scheduleTime = new Date(schedule.startAt).getTime();
+
+      return scheduleTime === startAt.getTime();
+    });
+
+    if (duplicatedSchedule) {
+      return res.status(409).json({
+        message: "Workshop đã có lịch vào thời gian này",
+      });
+    }
+
+    workshop.schedules.push({
+      startAt,
+      seatsTotal,
+      spotsLeft: seatsTotal,
+    });
+
+    await workshop.save();
+
+    const createdSchedule = workshop.schedules[workshop.schedules.length - 1];
+
+    return res.status(201).json({
+      message: "Thêm lịch workshop thành công",
+
+      schedule: createdSchedule,
+
+      workshop,
+    });
+  } catch (error) {
+    console.error("Add workshop schedule error:", error);
+
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((item) => item.message);
+
+      return res.status(400).json({
+        message: messages.join(", "),
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Dữ liệu lịch workshop không hợp lệ",
+      });
+    }
+
+    return res.status(500).json({
+      message: error.message ?? "Không thể thêm lịch workshop",
     });
   }
 };
 
 export const getWorkshopById = async (req, res) => {
   try {
-    const workshop = await Workshop.findById(req.params.id).populate(
+    const workshopId = req.params.id;
+
+    if (!mongoose.isValidObjectId(workshopId)) {
+      return res.status(400).json({
+        message: "Workshop không hợp lệ",
+      });
+    }
+
+    const workshop = await Workshop.findById(workshopId).populate(
       "host",
       "displayName avatarUrl username",
     );
@@ -491,8 +678,7 @@ export const getWorkshopById = async (req, res) => {
     console.error("Get workshop detail error:", error);
 
     return res.status(500).json({
-      message: "Không thể tải workshop",
-      error: error.message,
+      message: error.message ?? "Không thể tải workshop",
     });
   }
 };
@@ -507,12 +693,6 @@ export const deleteMediaController = async (req, res) => {
       });
     }
 
-    if (resourceType !== "image" && resourceType !== "video") {
-      return res.status(400).json({
-        message: "resourceType không hợp lệ",
-      });
-    }
-
     await deleteWorkshopMedia(publicId, resourceType);
 
     return res.status(200).json({
@@ -522,8 +702,7 @@ export const deleteMediaController = async (req, res) => {
     console.error("Delete media error:", error);
 
     return res.status(500).json({
-      message: "Không thể xóa media",
-      error: error.message,
+      message: error.message ?? "Không thể xóa media",
     });
   }
 };
@@ -535,12 +714,6 @@ export const searchGoongPlaces = async (req, res) => {
     if (input.length < 2) {
       return res.status(200).json({
         predictions: [],
-      });
-    }
-
-    if (!process.env.GOONG_REST_API_KEY) {
-      return res.status(500).json({
-        message: "Chưa cấu hình Goong API key",
       });
     }
 
@@ -566,15 +739,14 @@ export const searchGoongPlaces = async (req, res) => {
     console.error("Search Goong places error:", error);
 
     return res.status(500).json({
-      message: "Không thể tìm địa điểm",
-      error: error.message,
+      message: error.message ?? "Không thể tìm địa điểm",
     });
   }
 };
 
 export const getGoongPlaceDetail = async (req, res) => {
   try {
-    const placeId = String(req.query.place_id ?? "").trim();
+    const placeId = String(req.query.place_id ?? "");
 
     if (!placeId) {
       return res.status(400).json({
@@ -582,14 +754,9 @@ export const getGoongPlaceDetail = async (req, res) => {
       });
     }
 
-    if (!process.env.GOONG_REST_API_KEY) {
-      return res.status(500).json({
-        message: "Chưa cấu hình Goong API key",
-      });
-    }
-
     const params = new URLSearchParams({
       place_id: placeId,
+
       api_key: process.env.GOONG_REST_API_KEY,
     });
 
@@ -604,15 +771,14 @@ export const getGoongPlaceDetail = async (req, res) => {
     console.error("Get Goong place detail error:", error);
 
     return res.status(500).json({
-      message: "Không thể lấy chi tiết địa điểm",
-      error: error.message,
+      message: error.message ?? "Không thể lấy chi tiết địa điểm",
     });
   }
 };
 
 export const reverseGoongGeocode = async (req, res) => {
   try {
-    const latlng = String(req.query.latlng ?? "").trim();
+    const latlng = String(req.query.latlng ?? "");
 
     if (!latlng) {
       return res.status(400).json({
@@ -620,14 +786,9 @@ export const reverseGoongGeocode = async (req, res) => {
       });
     }
 
-    if (!process.env.GOONG_REST_API_KEY) {
-      return res.status(500).json({
-        message: "Chưa cấu hình Goong API key",
-      });
-    }
-
     const params = new URLSearchParams({
       latlng,
+
       api_key: process.env.GOONG_REST_API_KEY,
     });
 
@@ -640,8 +801,7 @@ export const reverseGoongGeocode = async (req, res) => {
     console.error("Reverse geocode error:", error);
 
     return res.status(500).json({
-      message: "Không thể lấy địa chỉ từ tọa độ",
-      error: error.message,
+      message: error.message ?? "Không thể lấy địa chỉ từ tọa độ",
     });
   }
 };
@@ -671,7 +831,7 @@ export const getNearbyWorkshops = async (req, res) => {
 
     if (!Number.isFinite(distance) || distance <= 0 || distance > 100_000) {
       return res.status(400).json({
-        message: "Khoảng cách phải nằm trong khoảng 1 đến 100000 mét",
+        message: "Khoảng cách không hợp lệ",
       });
     }
 
@@ -682,21 +842,23 @@ export const getNearbyWorkshops = async (req, res) => {
         $near: {
           $geometry: {
             type: "Point",
+
             coordinates: [longitude, latitude],
           },
+
           $maxDistance: distance,
         },
       },
     };
 
-    if (excludeId) {
+    if (excludeId && mongoose.isValidObjectId(excludeId)) {
       query._id = {
         $ne: excludeId,
       };
     }
 
     const workshops = await Workshop.find(query)
-      .select("title thumbnail price location categories")
+      .select("title thumbnail price location categories schedules duration")
       .limit(8);
 
     return res.status(200).json({
@@ -706,8 +868,7 @@ export const getNearbyWorkshops = async (req, res) => {
     console.error("Nearby workshop error:", error);
 
     return res.status(500).json({
-      message: "Không thể lấy danh sách workshop gần đây",
-      error: error.message,
+      message: error.message ?? "Không thể lấy workshop gần đây",
     });
   }
 };
@@ -734,12 +895,15 @@ export const getWorkshops = async (req, res) => {
         {
           title: {
             $regex: escapedSearch,
+
             $options: "i",
           },
         },
+
         {
           description: {
             $regex: escapedSearch,
+
             $options: "i",
           },
         },
@@ -753,7 +917,7 @@ export const getWorkshops = async (req, res) => {
     if (maxPrice !== undefined) {
       const numericMaxPrice = Number(maxPrice);
 
-      if (Number.isFinite(numericMaxPrice) && numericMaxPrice >= 0) {
+      if (Number.isFinite(numericMaxPrice)) {
         filter.price = {
           $lte: numericMaxPrice,
         };
@@ -763,11 +927,13 @@ export const getWorkshops = async (req, res) => {
     if (address) {
       filter["location.address"] = {
         $regex: escapeRegExp(address),
+
         $options: "i",
       };
     }
 
     const numericPage = Number(page);
+
     const numericLimit = Number(limit);
 
     const currentPage =
@@ -780,7 +946,7 @@ export const getWorkshops = async (req, res) => {
 
     const [workshops, total] = await Promise.all([
       Workshop.find(filter)
-        .populate("host", "displayName avatarUrl")
+        .populate("host", "displayName avatarUrl username")
         .sort({
           createdAt: -1,
         })
@@ -793,15 +959,16 @@ export const getWorkshops = async (req, res) => {
     return res.status(200).json({
       workshops,
       total,
+
       page: currentPage,
+
       totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error("Get workshops error:", error);
 
     return res.status(500).json({
-      message: "Không thể tải danh sách workshop",
-      error: error.message,
+      message: error.message ?? "Không thể tải danh sách workshop",
     });
   }
 };

@@ -187,9 +187,27 @@ export const useWorkshopStore = create<WorkshopStore>((set) => ({
     });
 
     try {
+      const normalizedData: Partial<
+        Pick<
+          Workshop,
+          | "title"
+          | "categories"
+          | "description"
+          | "highlights"
+          | "includes"
+          | "price"
+          | "duration"
+          | "location"
+          | "status"
+        >
+      > = {
+        ...data,
+        price: typeof data.price === "string" ? Number(data.price) : data.price,
+      };
+
       const updatedWorkshop = await workshopService.updateWorkshop(
         workshopId,
-        data,
+        normalizedData,
       );
 
       set((state) => ({

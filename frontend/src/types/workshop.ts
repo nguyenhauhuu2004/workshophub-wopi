@@ -95,3 +95,23 @@ export type GoongPlaceResult = {
     location: GoongPlaceLocation;
   };
 };
+
+export type UpdateWorkshopPayload = Partial<
+  Pick<
+    Workshop,
+    | "title"
+    | "categories"
+    | "description"
+    | "highlights"
+    | "includes"
+    | "price"
+    | "duration"
+    | "location"
+    | "status"
+  >
+>;
+
+export type CreateWorkshopSchedulePayload = Pick<
+  WorkshopSchedule,
+  "startAt" | "seatsTotal"
+>;
