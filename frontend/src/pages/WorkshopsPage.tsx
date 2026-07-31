@@ -616,42 +616,6 @@ export default function WorkshopsPage() {
 
     onClearAll: clearAllFilters,
   };
-  const locationLabel = searchParams.get("location") ?? "";
-
-  const rawLongitude = searchParams.get("longitude");
-  const rawLatitude = searchParams.get("latitude");
-
-  const longitude = rawLongitude === null ? null : Number(rawLongitude);
-  const latitude = rawLatitude === null ? null : Number(rawLatitude);
-
-  const hasGeoSearch =
-    longitude !== null &&
-    latitude !== null &&
-    Number.isFinite(longitude) &&
-    Number.isFinite(latitude);
-
-  const rawDistance = Number(searchParams.get("distance"));
-
-  const distance =
-    hasGeoSearch && Number.isFinite(rawDistance) && rawDistance > 0
-      ? rawDistance
-      : 20_000;
-  const params: WorkshopSearchParams = {
-    search: searchValue || undefined,
-    category: category || undefined,
-    area: area || undefined,
-    minPrice: minPrice ? Number(minPrice) : undefined,
-    maxPrice: maxPrice ? Number(maxPrice) : undefined,
-    minRating: minRating > 0 ? minRating : undefined,
-
-    longitude: hasGeoSearch ? (longitude ?? undefined) : undefined,
-    latitude: hasGeoSearch ? (latitude ?? undefined) : undefined,
-    distance: hasGeoSearch ? distance : undefined,
-
-    sort,
-    page: currentPage,
-    limit: 12,
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
