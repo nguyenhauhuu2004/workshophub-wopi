@@ -5,7 +5,11 @@ export default function Footer() {
   return (
     <footer className="relative bg-[#0D0D1A] overflow-hidden">
       <div className="absolute top-0 left-0 right-0 pointer-events-none">
-        <svg viewBox="0 0 1440 80" className="w-full" preserveAspectRatio="none">
+        <svg
+          viewBox="0 0 1440 80"
+          className="w-full"
+          preserveAspectRatio="none"
+        >
           <path d="M0,0 C360,80 1080,0 1440,60 L1440,0 Z" fill="#F5F0EA" />
         </svg>
       </div>
@@ -13,11 +17,29 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 pt-24 pb-12 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
           <div className="md:col-span-2">
-            <h3 className="text-3xl font-black text-white mb-4" style={{ fontFamily: "var(--font-display)" }}>Wo<span className="text-[#7C3AED]">Py</span></h3>
-            <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">The world's most creative marketplace for handcrafted workshops and artistic experiences.</p>
+            <h3
+              className="text-3xl font-black text-white mb-4"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Wo<span className="text-[#7C3AED]">Pi</span>
+            </h3>
+            <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
+              The world's most creative marketplace for handcrafted workshops
+              and artistic experiences.
+            </p>
             <div className="flex gap-2">
-              <input type="email" placeholder="Your email" className="flex-1 bg-white/8 border border-white/10 rounded-full px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-violet-500 transition-colors" />
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} className="bg-[#7C3AED] text-white text-sm font-semibold px-5 py-2.5 rounded-full">Join</motion.button>
+              <input
+                type="email"
+                placeholder="Your email"
+                className="flex-1 bg-white/8 border border-white/10 rounded-full px-4 py-2.5 text-white text-sm placeholder-gray-600 outline-none focus:border-violet-500 transition-colors"
+              />
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                className="bg-[#7C3AED] text-white text-sm font-semibold px-5 py-2.5 rounded-full"
+              >
+                Join
+              </motion.button>
             </div>
           </div>
           {/* {Object.entries("").map(([group, links]) => (
@@ -32,10 +54,20 @@ export default function Footer() {
           ))} */}
         </div>
         <div className="border-t border-white/6 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-gray-600 text-xs">© 2025 WoPy. All rights reserved.</p>
+          <p className="text-gray-600 text-xs">
+            © 2025 WoPi. All rights reserved.
+          </p>
           <div className="flex items-center gap-4">
             {[Instagram, Twitter, Youtube, Mail].map((Icon, i) => (
-              <motion.a key={i} href="#" whileHover={{ scale: 1.2, color: "#7C3AED" }} whileTap={{ scale: 0.9 }} className="text-gray-600"><Icon size={18} /></motion.a>
+              <motion.a
+                key={i}
+                href="#"
+                whileHover={{ scale: 1.2, color: "#7C3AED" }}
+                whileTap={{ scale: 0.9 }}
+                className="text-gray-600"
+              >
+                <Icon size={18} />
+              </motion.a>
             ))}
           </div>
         </div>
