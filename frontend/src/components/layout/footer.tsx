@@ -21,7 +21,7 @@ export default function Footer() {
               className="text-3xl font-black text-white mb-4"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Wo<span className="text-[#7C3AED]">Pi</span>
+              <img src="logo.png" alt="Logo" className="w-48" />
             </h3>
             <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
               The world's most creative marketplace for handcrafted workshops
