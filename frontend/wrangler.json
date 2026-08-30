@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "vite-react-template",
+  "name": "workshophub-wopi",
   "compatibility_date": "2025-10-08",
   "assets": {
     "directory": "./dist",
