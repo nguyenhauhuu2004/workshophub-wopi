@@ -1,0 +1,149 @@
+import { create } from "zustand";
+import { toast } from "sonner";
+import { authService } from "@/services/authService";
+import type { AuthState } from "@/types/store";
+import { persist } from "zustand/middleware";
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      accessToken: null,
+      user: null,
+      loading: false,
+
+      setAccessToken: (accessToken) => {
+        set({ accessToken });
+      },
+      setUser: (user) => {
+        set({ user });
+      },
+      clearState: () => {
+        set({ accessToken: null, user: null, loading: false });
+        localStorage.clear();
+      },
+
+      signUp: async (
+        username: string,
+        password: string,
+        displayName: string,
+        email: string,
+        phone: string,
+      ) => {
+        try {
+          set({ loading: true });
+
+          localStorage.clear();
+          //  gọi api
+          await authService.signUp(
+            username,
+            password,
+            phone,
+            displayName,
+            email,
+          );
+
+          toast.success(
+            "Đăng ký thành công! Bạn sẽ được chuyển sang trang đăng nhập.",
+          );
+        } catch (error) {
+          console.error(error);
+          toast.error("Đăng ký không thành công");
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      signIn: async (username, password) => {
+        try {
+          set({ loading: true });
+
+          const { accessToken } = await authService.signIn(username, password);
+          get().setAccessToken(accessToken);
+
+          await get().fetchMe();
+
+          toast.success("Chào mừng bạn quay lại với WoPi 🎉");
+        } catch (error) {
+          console.error(error);
+          toast.error("Đăng nhập không thành công!");
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      googleSignIn: async (credential: string) => {
+        try {
+          set({ loading: true });
+
+          const { accessToken } = await authService.googleSignIn(credential);
+          get().setAccessToken(accessToken);
+
+          await get().fetchMe();
+
+          toast.success("Đăng nhập bằng Google thành công! 🎉");
+        } catch (error) {
+          console.error(error);
+          toast.error("Đăng nhập bằng Google không thành công!");
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      signOut: async () => {
+        try {
+          get().clearState();
+          await authService.signOut();
+          toast.success("Logout thành công!");
+        } catch (error) {
+          console.error(error);
+          toast.error("Lỗi xảy ra khi logout. Hãy thử lại!");
+        }
+      },
+
+      fetchMe: async () => {
+        try {
+          set({ loading: true });
+          const user = await authService.fetchMe();
+
+          set({ user });
+        } catch (error) {
+          console.error(error);
+          set({ user: null, accessToken: null });
+          toast.error("Lỗi xảy ra khi lấy dữ liệu người dùng. Hãy thử lại!");
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      refresh: async () => {
+        try {
+          set({ loading: true });
+          const { user, fetchMe, setAccessToken } = get();
+          const accessToken = await authService.refresh();
+
+          setAccessToken(accessToken);
+
+          if (!user) {
+            await fetchMe();
+          }
+        } catch (error) {
+          console.error(error);
+          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          get().clearState();
+        } finally {
+          set({ loading: false });
+        }
+      },
+    }),
+    {
+      name: "auth-stores",
+      partialize: (state) => ({
+        user: state.user,
+        // accessToken: state.accessToken,
+      }), //chỉ presis lại user
+    },
+  ),
+);
+
+export interface UserState {
+  updateAvatarUrl: (formData: FormData) => Promise<void>;
+}
