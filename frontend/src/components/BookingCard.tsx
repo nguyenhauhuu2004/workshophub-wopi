@@ -321,12 +321,12 @@ const BookingCard = ({
             Đang xử lý...
           </>
         ) : (
-          "Đặt chỗ"
+          "Đặt chỗ & Thanh toán VietQR"
         )}
       </Button>
 
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        Bạn sẽ thanh toán trực tiếp tại địa điểm tổ chức.
+        Chuyển khoản an toàn và tiện lợi qua mã VietQR 24/7.
       </p>
     </div>
   );

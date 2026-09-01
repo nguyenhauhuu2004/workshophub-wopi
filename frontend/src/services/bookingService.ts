@@ -43,6 +43,16 @@ export const bookingService = {
 
     return response.data;
   },
+
+  cancelBooking: async (
+    bookingId: string
+  ): Promise<{ message: string; booking: any }> => {
+    const response = await api.patch<{ message: string; booking: any }>(
+      `/bookings/${bookingId}/cancel`
+    );
+
+    return response.data;
+  },
 };
 
 export default bookingService;

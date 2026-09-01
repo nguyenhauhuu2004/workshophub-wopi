@@ -25,6 +25,10 @@ const workshopScheduleSchema = new mongoose.Schema({
     required: true,
   },
 
+  endAt: {
+    type: Date,
+  },
+
   seatsTotal: {
     type: Number,
     required: true,
@@ -51,6 +55,13 @@ const locationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    ward: { type: String, trim: true, default: "" },
+    district: { type: String, trim: true, default: "" },
+    city: { type: String, trim: true, default: "" },
+    province: { type: String, trim: true, default: "" },
+    country: { type: String, trim: true, default: "Việt Nam" },
+    formattedAddress: { type: String, trim: true, default: "" },
 
     placeId: {
       type: String,
@@ -192,6 +203,10 @@ const workshopSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    
+    nextScheduleStartAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -200,6 +215,9 @@ const workshopSchema = new mongoose.Schema(
 workshopSchema.index({
   "location.coordinates": "2dsphere",
 });
+workshopSchema.index({ "location.city": 1 });
+workshopSchema.index({ "location.district": 1 });
+workshopSchema.index({ nextScheduleStartAt: 1 });
 
 const Workshop = mongoose.model("Workshop", workshopSchema);
 export default Workshop;

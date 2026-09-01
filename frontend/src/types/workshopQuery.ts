@@ -7,6 +7,7 @@ export type WorkshopSort =
   | "price_asc"
   | "price_desc"
   | "rating_desc"
+  | "upcoming"
   | "distance_asc";
 
 export type WorkshopListItem = Workshop & {
@@ -18,16 +19,17 @@ export type WorkshopSearchParams = {
   category?: string;
   minPrice?: number;
   maxPrice?: number;
-  area?: string;
   minRating?: number;
   dateFrom?: string;
   dateTo?: string;
+  city?: string;
+  district?: string;
+  ward?: string;
+  lat?: number;
+  lng?: number;
+  radius?: number;
 
-  longitude?: number;
-  latitude?: number;
-  distance?: number;
-
-  sort?: WorkshopSort;
+  sort?: WorkshopSort | "upcoming";
   page?: number;
   limit?: number;
 };

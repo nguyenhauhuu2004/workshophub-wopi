@@ -357,31 +357,9 @@ export function WorkshopDetail() {
         quantity: bookingData.quantity,
       });
 
-      toast.success(result.message ?? "Đặt chỗ thành công");
+      toast.success(result.message ?? "Đặt chỗ thành công! Đang chuyển tới trang thanh toán...");
 
-      setWorkshop((current) => {
-        if (!current) {
-          return current;
-        }
-
-        return {
-          ...current,
-
-          schedules: current.schedules.map((schedule, index) => {
-            const scheduleId = schedule._id ?? `schedule-${index}`;
-
-            if (scheduleId !== bookingData.session.id) {
-              return schedule;
-            }
-
-            return {
-              ...schedule,
-
-              spotsLeft: Math.max(0, schedule.spotsLeft - bookingData.quantity),
-            };
-          }),
-        };
-      });
+      navigate(`/payment/${result.booking._id}`);
     } catch (error) {
       console.error("Booking error:", error);
 

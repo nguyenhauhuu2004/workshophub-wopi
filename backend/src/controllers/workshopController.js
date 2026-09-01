@@ -14,6 +14,37 @@ const WORKSHOP_STATUSES = new Set([
   "archived",
 ]);
 
+const calculateEndAt = (startAt, durationStr) => {
+  const startDate = new Date(startAt);
+  let hours = 2; // default
+  if (durationStr) {
+    const match = durationStr.match(/(\d+(?:\.\d+)?)\s*(giờ|hour|h)/i);
+    if (match) {
+      hours = parseFloat(match[1]);
+    } else {
+      const minMatch = durationStr.match(/(\d+)\s*(phút|minute|m)/i);
+      if (minMatch) {
+        hours = parseInt(minMatch[1], 10) / 60;
+      }
+    }
+  }
+  return new Date(startDate.getTime() + hours * 60 * 60 * 1000);
+};
+
+const calculateNextScheduleStartAt = (schedules) => {
+  if (!schedules || schedules.length === 0) return null;
+  const now = Date.now();
+  const upcoming = schedules
+    .map((s) => new Date(s.startAt).getTime())
+    .filter((time) => time >= now)
+    .sort((a, b) => a - b);
+  
+  if (upcoming.length > 0) {
+    return new Date(upcoming[0]);
+  }
+  return null;
+};
+
 const parseJSONField = (value, fallback) => {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -331,7 +362,12 @@ export const createWorkshop = async (req, res) => {
 
       duration: String(duration ?? "").trim(),
 
-      schedules,
+      schedules: schedules.map((s) => ({
+        ...s,
+        endAt: calculateEndAt(s.startAt, String(duration ?? "").trim()),
+      })),
+
+      nextScheduleStartAt: calculateNextScheduleStartAt(schedules),
 
       location: {
         address: location.address.trim(),
@@ -339,6 +375,13 @@ export const createWorkshop = async (req, res) => {
         placeId: String(location.placeId ?? "").trim(),
 
         notes: String(location.notes ?? "").trim(),
+
+        ward: String(location.ward ?? "").trim(),
+        district: String(location.district ?? "").trim(),
+        city: String(location.city ?? "").trim(),
+        province: String(location.province ?? "").trim(),
+        country: String(location.country ?? "Việt Nam").trim(),
+        formattedAddress: String(location.formattedAddress ?? "").trim(),
 
         coordinates: {
           type: "Point",
@@ -490,11 +533,28 @@ export const updateWorkshop = async (req, res) => {
 
         notes: String(location.notes ?? "").trim(),
 
+        ward: String(location.ward ?? "").trim(),
+        district: String(location.district ?? "").trim(),
+        city: String(location.city ?? "").trim(),
+        province: String(location.province ?? "").trim(),
+        country: String(location.country ?? "Việt Nam").trim(),
+        formattedAddress: String(location.formattedAddress ?? "").trim(),
+
         coordinates: {
           type: "Point",
           coordinates: [longitude, latitude],
         },
       };
+    }
+
+    if (req.body.duration !== undefined) {
+      if (workshop.schedules && workshop.schedules.length > 0) {
+        updates.schedules = workshop.schedules.map((s) => ({
+          ...s.toObject(),
+          endAt: calculateEndAt(s.startAt, updates.duration || workshop.duration),
+        }));
+        updates.nextScheduleStartAt = calculateNextScheduleStartAt(updates.schedules);
+      }
     }
 
     if (req.body.status !== undefined) {
@@ -612,9 +672,12 @@ export const addWorkshopSchedule = async (req, res) => {
 
     workshop.schedules.push({
       startAt,
+      endAt: calculateEndAt(startAt, workshop.duration),
       seatsTotal,
       spotsLeft: seatsTotal,
     });
+    
+    workshop.nextScheduleStartAt = calculateNextScheduleStartAt(workshop.schedules);
 
     await workshop.save();
 
@@ -880,6 +943,15 @@ export const getWorkshops = async (req, res) => {
       category,
       maxPrice,
       address,
+      city,
+      district,
+      ward,
+      lat,
+      lng,
+      radius,
+      dateFrom,
+      dateTo,
+      sort,
       page = 1,
       limit = 12,
     } = req.query;
@@ -890,23 +962,9 @@ export const getWorkshops = async (req, res) => {
 
     if (search) {
       const escapedSearch = escapeRegExp(search);
-
       filter.$or = [
-        {
-          title: {
-            $regex: escapedSearch,
-
-            $options: "i",
-          },
-        },
-
-        {
-          description: {
-            $regex: escapedSearch,
-
-            $options: "i",
-          },
-        },
+        { title: { $regex: escapedSearch, $options: "i" } },
+        { description: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -916,57 +974,111 @@ export const getWorkshops = async (req, res) => {
 
     if (maxPrice !== undefined) {
       const numericMaxPrice = Number(maxPrice);
-
       if (Number.isFinite(numericMaxPrice)) {
-        filter.price = {
-          $lte: numericMaxPrice,
-        };
+        filter.price = { $lte: numericMaxPrice };
       }
     }
 
-    if (address) {
-      filter["location.address"] = {
-        $regex: escapeRegExp(address),
+    // Structured Location filtering
+    if (city) filter["location.city"] = city;
+    if (district) filter["location.district"] = district;
+    if (ward) filter["location.ward"] = ward;
+    if (address && !city && !district && !ward) {
+      filter["location.address"] = { $regex: escapeRegExp(address), $options: "i" };
+    }
 
-        $options: "i",
+    // Geo Location filtering
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    const distance = Number(radius ?? 10000);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      filter["location.coordinates"] = {
+        $near: {
+          $geometry: { type: "Point", coordinates: [longitude, latitude] },
+          $maxDistance: distance,
+        },
       };
     }
 
+    // Date filtering (overlap)
+    if (dateFrom || dateTo) {
+      const dateFilter = {};
+      if (dateFrom) dateFilter.$gte = new Date(dateFrom);
+      if (dateTo) dateFilter.$lte = new Date(dateTo);
+      
+      // If a workshop is from 10 to 12, and we search 11, it overlaps if startAt <= 11 AND endAt >= 11
+      // For general overlap of [start1, end1] and [start2, end2]: start1 <= end2 AND end1 >= start2
+      filter.schedules = {
+        $elemMatch: {
+          startAt: dateTo ? { $lte: new Date(dateTo) } : { $exists: true },
+          endAt: dateFrom ? { $gte: new Date(dateFrom) } : { $exists: true }
+        }
+      };
+    }
+
+    // Sorting
+    let sortConfig = { createdAt: -1 };
+    if (sort === "upcoming") {
+      sortConfig = { nextScheduleStartAt: 1 };
+      filter.nextScheduleStartAt = { $gte: new Date() };
+    } else if (sort === "price_asc") {
+      sortConfig = { price: 1 };
+    } else if (sort === "price_desc") {
+      sortConfig = { price: -1 };
+    } else if (sort === "rating_desc") {
+      sortConfig = { averageRating: -1 };
+    } else if (sort === "distance_asc") {
+      sortConfig = undefined; // $near sorts automatically
+    }
+
+    if (filter["location.coordinates"] && filter["location.coordinates"].$near) {
+      sortConfig = undefined; // MongoDB does not allow sort with $near
+    }
+
     const numericPage = Number(page);
-
     const numericLimit = Number(limit);
-
-    const currentPage =
-      Number.isInteger(numericPage) && numericPage > 0 ? numericPage : 1;
-
-    const pageSize =
-      Number.isInteger(numericLimit) && numericLimit > 0
-        ? Math.min(numericLimit, 50)
-        : 12;
+    const currentPage = Number.isInteger(numericPage) && numericPage > 0 ? numericPage : 1;
+    const pageSize = Number.isInteger(numericLimit) && numericLimit > 0 ? Math.min(numericLimit, 50) : 12;
 
     const [workshops, total] = await Promise.all([
       Workshop.find(filter)
         .populate("host", "displayName avatarUrl username")
-        .sort({
-          createdAt: -1,
-        })
+        .sort(sortConfig)
         .skip((currentPage - 1) * pageSize)
         .limit(pageSize),
-
       Workshop.countDocuments(filter),
     ]);
 
+    // Convert to plain objects
+    let resultWorkshops = workshops.map(w => w.toObject());
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      resultWorkshops = resultWorkshops.map(w => {
+        if (w.location && w.location.coordinates && w.location.coordinates.coordinates) {
+          const [wLng, wLat] = w.location.coordinates.coordinates;
+          const R = 6371e3; // metres
+          const φ1 = latitude * Math.PI/180;
+          const φ2 = wLat * Math.PI/180;
+          const Δφ = (wLat-latitude) * Math.PI/180;
+          const Δλ = (wLng-longitude) * Math.PI/180;
+          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          w.distanceMeters = Math.round(R * c);
+        }
+        return w;
+      });
+    }
+
     return res.status(200).json({
-      workshops,
+      workshops: resultWorkshops,
       total,
-
       page: currentPage,
-
       totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error("Get workshops error:", error);
-
     return res.status(500).json({
       message: error.message ?? "Không thể tải danh sách workshop",
     });

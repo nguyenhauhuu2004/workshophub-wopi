@@ -11,6 +11,7 @@ import workshopRoutes from "./routes/workshopRoutes.js";
 import hostRoutes from "./routes/hostRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import promotionRoutes from "./routes/promotionRoutes.js";
+import paymentRoutes, { webhookRouter } from "./routes/paymentRoutes.js";
 
 dotenv.config();
 
@@ -32,6 +33,8 @@ cloudinary.config({
 // public routes
 app.use("/api/auth", authRoute);
 app.use("/api/workshops", workshopRoutes);
+app.use("/api/payments/webhook", webhookRouter);
+
 // private routes
 app.use(protectedRoute);
 app.use("/api/users", userRoute);
@@ -39,6 +42,7 @@ app.use("/api/host", hostRoutes);
 
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/promotions", promotionRoutes);
+app.use("/api/payments", paymentRoutes);
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`server bắt đầu trên cổng ${PORT}`);

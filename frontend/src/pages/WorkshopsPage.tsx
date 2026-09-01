@@ -26,6 +26,10 @@ import { toast } from "sonner";
 import WorkshopCard from "@/components/WorkshopCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
+import type { StructuredLocation } from "@/components/LocationAutocomplete";
+import DatePickerFilter from "@/components/DatePickerFilter";
+import { Navigation } from "lucide-react";
 
 import { CATEGORIES } from "@/data";
 import { workshopService } from "@/services/workshopService";
@@ -38,17 +42,6 @@ import type {
 
 const PAGE_SIZE = 12;
 
-const areas = [
-  "Hồ Chí Minh",
-  "Hà Nội",
-  "Đà Nẵng",
-  "Cần Thơ",
-  "Hải Phòng",
-  "Huế",
-  "Đà Lạt",
-  "Bình Dương",
-  "Đồng Nai",
-];
 
 const sortOptions: Array<{
   value: WorkshopSort;
@@ -57,6 +50,10 @@ const sortOptions: Array<{
   {
     value: "newest",
     label: "Mới nhất",
+  },
+  {
+    value: "upcoming",
+    label: "Sắp diễn ra",
   },
   {
     value: "rating_desc",
@@ -142,27 +139,7 @@ const getNumberParam = (value: string | null, fallback: number) => {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 };
 
-const getDateRange = (dateValue: string) => {
-  if (!dateValue) {
-    return null;
-  }
 
-  const startDate = new Date(`${dateValue}T00:00:00`);
-
-  if (Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-
-  const endDate = new Date(startDate);
-
-  endDate.setDate(endDate.getDate() + 1);
-
-  return {
-    dateFrom: startDate.toISOString(),
-
-    dateTo: endDate.toISOString(),
-  };
-};
 
 const formatMoney = (value: string) => {
   const numberValue = Number(value);
@@ -186,18 +163,20 @@ export default function WorkshopsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const searchValue = searchParams.get("search") ?? "";
-
   const category = searchParams.get("category") ?? "";
-
-  const area = searchParams.get("area") ?? "";
-
-  const date = searchParams.get("date") ?? "";
-
+  
   const minPrice = searchParams.get("minPrice") ?? "";
-
   const maxPrice = searchParams.get("maxPrice") ?? "";
-
   const minRating = getNumberParam(searchParams.get("minRating"), 0);
+  
+  // Location
+  const addressName = searchParams.get("address") ?? "";
+  const lat = searchParams.get("lat") ? Number(searchParams.get("lat")) : undefined;
+  const lng = searchParams.get("lng") ? Number(searchParams.get("lng")) : undefined;
+  
+  // Date
+  const dateFrom = searchParams.get("dateFrom") ?? "";
+  const dateTo = searchParams.get("dateTo") ?? "";
 
   const currentPage = Math.max(
     1,
@@ -295,29 +274,18 @@ export default function WorkshopsPage() {
         setLoading(true);
         setError(null);
 
-        const dateRange = getDateRange(date);
-
         const params: WorkshopSearchParams = {
           search: searchValue || undefined,
-
           category: category || undefined,
-
-          area: area || undefined,
-
           minPrice: minPrice ? Number(minPrice) : undefined,
-
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
-
           minRating: minRating > 0 ? minRating : undefined,
-
-          dateFrom: dateRange?.dateFrom,
-
-          dateTo: dateRange?.dateTo,
-
+          lat,
+          lng,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
           sort,
-
           page: currentPage,
-
           limit: PAGE_SIZE,
         };
 
@@ -359,10 +327,13 @@ export default function WorkshopsPage() {
       controller.abort();
     };
   }, [
-    area,
+    addressName,
+    lat,
+    lng,
     category,
     currentPage,
-    date,
+    dateFrom,
+    dateTo,
     maxPrice,
     minPrice,
     minRating,
@@ -433,6 +404,28 @@ export default function WorkshopsPage() {
     });
   };
 
+  const handleNearMe = () => {
+    if (!navigator.geolocation) {
+      toast.error("Trình duyệt không hỗ trợ định vị");
+      return;
+    }
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updateSearchParams({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          address: null,
+          sort: "distance_asc"
+        });
+      },
+      (err) => {
+        setLoading(false);
+        toast.error("Không thể lấy vị trí: " + err.message);
+      }
+    );
+  };
+
   const changePage = (page: number) => {
     if (page < 1 || page > data.totalPages || page === currentPage) {
       return;
@@ -486,14 +479,13 @@ export default function WorkshopsPage() {
       });
     }
 
-    if (area) {
+    if (lat && lng) {
       filters.push({
-        key: "area",
-        label: area,
-
+        key: "location",
+        label: addressName ? addressName : "Gần tôi",
         clear: () =>
           updateSearchParams({
-            area: null,
+            address: null, lat: null, lng: null
           }),
       });
     }
@@ -526,25 +518,25 @@ export default function WorkshopsPage() {
       });
     }
 
-    if (date) {
+    if (dateFrom || dateTo) {
       filters.push({
         key: "date",
 
-        label: new Date(`${date}T00:00:00`).toLocaleDateString("vi-VN"),
+        label: dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : dateFrom ? `Từ ${dateFrom}` : `Đến ${dateTo}`,
 
         clear: () =>
           updateSearchParams({
-            date: null,
+            dateFrom: null, dateTo: null
           }),
       });
     }
 
     return filters;
   }, [
-    area,
+    addressName, lat, lng,
     category,
     clearPriceFilter,
-    date,
+    dateFrom, dateTo,
     maxPrice,
     minPrice,
     minRating,
@@ -554,8 +546,9 @@ export default function WorkshopsPage() {
 
   const filterPanelProps: FilterPanelProps = {
     category,
-    area,
-    date,
+    addressName,
+    dateFrom,
+    dateTo,
     minRating,
     minPriceInput,
     maxPriceInput,
@@ -565,14 +558,18 @@ export default function WorkshopsPage() {
         category: value || null,
       }),
 
-    onAreaChange: (value) =>
-      updateSearchParams({
-        area: value || null,
-      }),
+    onLocationChange: (loc: StructuredLocation | null) => {
+      if (loc) {
+        updateSearchParams({ lat: loc.lat, lng: loc.lng, address: loc.city || loc.district || loc.ward || "Vị trí đã chọn" });
+      } else {
+        updateSearchParams({ lat: null, lng: null, address: null });
+      }
+    },
 
-    onDateChange: (value) =>
+    onDateChange: (from: string, to: string) =>
       updateSearchParams({
-        date: value || null,
+        dateFrom: from || null,
+        dateTo: to || null,
       }),
 
     onRatingChange: (value) =>
@@ -581,13 +578,9 @@ export default function WorkshopsPage() {
       }),
 
     onMinPriceInputChange: setMinPriceInput,
-
     onMaxPriceInputChange: setMaxPriceInput,
-
     onApplyPrice: applyPriceFilter,
-
     onClearPrice: clearPriceFilter,
-
     onClearAll: clearAllFilters,
   };
 
@@ -642,11 +635,11 @@ export default function WorkshopsPage() {
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant="outline"
-                  // onClick={() => void useMyLocation()}
+                  variant={lat && lng ? "default" : "outline"}
+                  onClick={handleNearMe}
                   className="h-12 rounded-xl"
                 >
-                  {/* <Navigation className="mr-2 size-4" /> */}
+                  <Navigation className="mr-2 size-4" />
                   Gần tôi
                 </Button>
                 <Button
@@ -757,39 +750,34 @@ export default function WorkshopsPage() {
 
 type FilterPanelProps = {
   category: string;
-  area: string;
-  date: string;
+  addressName: string;
+  dateFrom: string;
+  dateTo: string;
   minRating: number;
   minPriceInput: string;
   maxPriceInput: string;
 
   onCategoryChange: (value: string) => void;
-
-  onAreaChange: (value: string) => void;
-
-  onDateChange: (value: string) => void;
-
+  onLocationChange: (loc: StructuredLocation | null) => void;
+  onDateChange: (from: string, to: string) => void;
   onRatingChange: (value: number) => void;
-
   onMinPriceInputChange: (value: string) => void;
-
   onMaxPriceInputChange: (value: string) => void;
-
   onApplyPrice: (min?: string, max?: string) => void;
-
   onClearPrice: () => void;
   onClearAll: () => void;
 };
 
 function FilterPanel({
   category,
-  area,
-  date,
+  addressName,
+  dateFrom,
+  dateTo,
   minRating,
   minPriceInput,
   maxPriceInput,
   onCategoryChange,
-  onAreaChange,
+  onLocationChange,
   onDateChange,
   onRatingChange,
   onMinPriceInputChange,
@@ -890,19 +878,10 @@ function FilterPanel({
       </FilterSection>
 
       <FilterSection title="Khu vực" icon={<MapPin className="size-4" />}>
-        <select
-          value={area}
-          onChange={(event) => onAreaChange(event.target.value)}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">Tất cả khu vực</option>
-
-          {areas.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
+        <LocationAutocomplete 
+          defaultValue={addressName} 
+          onSelectLocation={onLocationChange} 
+        />
       </FilterSection>
 
       <FilterSection title="Đánh giá" icon={<Star className="size-4" />}>
@@ -941,16 +920,12 @@ function FilterPanel({
         title="Ngày tham gia"
         icon={<CalendarDays className="size-4" />}
       >
-        <Input
-          type="date"
-          value={date}
-          onChange={(event) => onDateChange(event.target.value)}
-        />
+        <DatePickerFilter dateFrom={dateFrom} dateTo={dateTo} onChange={onDateChange} />
 
-        {date && (
+        {(dateFrom || dateTo) && (
           <button
             type="button"
-            onClick={() => onDateChange("")}
+            onClick={() => onDateChange("", "")}
             className="mt-2 text-xs font-semibold text-muted-foreground hover:text-primary"
           >
             Xóa ngày đã chọn

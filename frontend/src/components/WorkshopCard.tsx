@@ -1,4 +1,4 @@
-import { CalendarDays, Clock3, Heart, MapPin, Star, Users } from "lucide-react";
+import { CalendarDays, Clock3, Heart, MapPin, Star, Users, Navigation } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import type { Workshop } from "@/types/workshop";
@@ -7,6 +7,7 @@ type WorkshopCardData = Workshop & {
   sponsored?: boolean;
   averageRating?: number;
   reviewCount?: number;
+  distanceMeters?: number;
 };
 
 type WorkshopCardProps = {
@@ -162,6 +163,13 @@ const WorkshopCard = ({
               {shortenAddress(workshop.location?.address)}
             </span>
           </div>
+
+          {workshop.distanceMeters !== undefined && (
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+              <Navigation className="size-3.5 shrink-0" />
+              <span>Cách bạn {(workshop.distanceMeters / 1000).toFixed(1).replace('.', ',')} km</span>
+            </div>
+          )}
           {/* 
           <p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
             {workshop.description}

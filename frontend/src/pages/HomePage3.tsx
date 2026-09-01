@@ -9,8 +9,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   motion,
-  useScroll,
-  useTransform,
   useInView,
   useMotionValue,
   useSpring,
@@ -216,12 +214,7 @@ export default function HomePage() {
 
   const handleCategory = (c: string) => navigate(`/workshops?category=${encodeURIComponent(c)}`);
 
-  // Parallax
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroY = useTransform(heroProgress, [0, 1], [0, 100]);
-  const heroScale = useTransform(heroProgress, [0, 1], [1, 1.05]);
-  const heroOpacity = useTransform(heroProgress, [0, 0.6], [1, 0]);
+  // Parallax removed
 
   /* ═══════════════════════════════════════════════
      RENDER
@@ -232,45 +225,24 @@ export default function HomePage() {
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             HERO — Bright, Clean
            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <section
-          ref={heroRef}
-          className="relative overflow-hidden bg-[#FDF8F0] dark:bg-background"
-          style={{ minHeight: "100vh" }}
-        >
-          {/* ── Animated soft organic blobs ── */}
-          <div className="absolute inset-0 overflow-hidden">
-            <motion.div
-              animate={{
-                x: [0, 80, -40, 0],
-                y: [0, -60, 30, 0],
-                scale: [1, 1.1, 0.95, 1],
-              }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        <section className="relative overflow-hidden bg-[#FDF8F0] dark:bg-background min-h-[100dvh]">
+          {/* ── Static soft organic blobs ── */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div
               className="absolute -left-32 top-1/4 size-[600px] rounded-full opacity-40 mix-blend-multiply dark:mix-blend-screen dark:opacity-20"
               style={{
                 background: "radial-gradient(circle, #FF6B00 0%, transparent 70%)",
                 filter: "blur(80px)",
               }}
             />
-            <motion.div
-              animate={{
-                x: [0, -70, 50, 0],
-                y: [0, 80, -50, 0],
-                scale: [1, 0.9, 1.1, 1],
-              }}
-              transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+            <div
               className="absolute -right-20 top-1/3 size-[500px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen dark:opacity-20"
               style={{
                 background: "radial-gradient(circle, #7C956B 0%, transparent 70%)",
                 filter: "blur(80px)",
               }}
             />
-            <motion.div
-              animate={{
-                x: [0, 60, -30, 0],
-                y: [0, -40, 60, 0],
-              }}
-              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+            <div
               className="absolute bottom-0 left-1/3 size-[400px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen dark:opacity-20"
               style={{
                 background: "radial-gradient(circle, #C05621 0%, transparent 70%)",
@@ -289,21 +261,15 @@ export default function HomePage() {
             }}
           />
 
-          {/* ── Hero image with softer parallax ── */}
-          <motion.div
-            style={{ y: heroY, scale: heroScale }}
-            className="absolute right-0 top-0 h-full w-[50%] max-lg:hidden"
-          >
+          {/* ── Hero image ── */}
+          <div className="absolute right-0 top-0 h-full w-[50%] max-lg:hidden">
             <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#FDF8F0] via-[#FDF8F0]/80 to-transparent dark:from-background dark:via-background/80" />
             <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#FDF8F0] via-transparent to-[#FDF8F0]/30 dark:from-background dark:to-background/30" />
             <img src={heroImage} alt="" className="h-full w-full object-cover rounded-bl-[80px]" />
-          </motion.div>
+          </div>
 
           {/* ── Content ── */}
-          <motion.div
-            style={{ opacity: heroOpacity }}
-            className="relative z-20 mx-auto flex min-h-screen max-w-[1440px] items-center px-6 py-32 sm:px-10"
-          >
+          <div className="relative z-20 mx-auto flex min-h-[100dvh] max-w-[1440px] items-center px-6 py-32 sm:px-10">
             <motion.div
               variants={staggerContainer}
               initial="hidden"
@@ -410,19 +376,15 @@ export default function HomePage() {
                 ))}
               </motion.div>
             </motion.div>
-          </motion.div>
+          </div>
 
           {/* ── Scroll indicator ── */}
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="absolute bottom-8 left-1/2 z-30 -translate-x-1/2"
-          >
+          <div className="absolute bottom-8 left-1/2 z-30 -translate-x-1/2 animate-bounce">
             <div className="flex flex-col items-center gap-2">
               <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#1A1A1F]/40 dark:text-white/25">Scroll</span>
               <div className="h-10 w-[1px] bg-gradient-to-b from-[#1A1A1F]/30 dark:from-white/30 to-transparent" />
             </div>
-          </motion.div>
+          </div>
         </section>
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -524,13 +486,12 @@ export default function HomePage() {
                 gradient="from-[#FF6B00] to-[#C05621]"
               >
                 <div className="relative z-10 flex h-full min-h-[340px] flex-col justify-end p-8 sm:p-10">
-                  <motion.div
+                  <div
                     className="absolute right-8 top-8 size-20 text-white/15"
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    style={{ animation: "spin 30s linear infinite" }}
                   >
                     <Palette className="size-full" />
-                  </motion.div>
+                  </div>
                   <span className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white/90 backdrop-blur-sm border border-white/20">
                     <Sparkles className="size-3.5" /> Chậm lại một chút
                   </span>
@@ -729,9 +690,9 @@ export default function HomePage() {
           <div className="mx-auto max-w-[1440px]">
             <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#FDF8F0] to-[#f5ebd9] dark:from-[#060d1b] dark:to-[#060d1b] border border-[#E8E2D8] dark:border-none shadow-xl shadow-[#1A1A1F]/5 dark:shadow-none">
               {/* Orb */}
-              <div className="absolute -right-40 -top-40 size-[500px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen"
+              <div className="absolute -right-40 -top-40 size-[500px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen pointer-events-none"
                 style={{ background: "radial-gradient(circle, #FF6B00 0%, transparent 70%)", filter: "blur(60px)" }} />
-              <div className="absolute -bottom-32 -left-32 size-[400px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen"
+              <div className="absolute -bottom-32 -left-32 size-[400px] rounded-full opacity-30 mix-blend-multiply dark:mix-blend-screen pointer-events-none"
                 style={{ background: "radial-gradient(circle, #7C956B 0%, transparent 70%)", filter: "blur(60px)" }} />
 
               <div className="relative z-10 grid gap-8 p-8 sm:p-14 lg:grid-cols-[1.3fr_0.7fr] lg:p-20">

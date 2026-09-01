@@ -240,13 +240,12 @@ export const createBooking = async (req, res) => {
             platformFee,
             hostNetAmount,
 
-            paymentStatus: "unpaid",
+            paymentStatus: "pending",
 
             /*
-             * Booking được xác nhận ngay
-             * vì hiện tại thanh toán tại địa điểm.
+             * Đặt trạng thái ban đầu là chờ thanh toán VietQR.
              */
-            status: "confirmed",
+            status: "pending_payment",
 
             payoutStatus: "pending",
           },
@@ -648,3 +647,79 @@ export const completeBooking = async (req, res) => {
     });
   }
 };
+
+export const releaseBookingSpots = async (booking, session = null) => {
+  if (!booking || !booking.workshop || !booking.sessionId || !booking.quantity) {
+    return;
+  }
+
+  const options = session ? { session } : {};
+
+  await Workshop.updateOne(
+    {
+      _id: booking.workshop,
+      "schedules._id": booking.sessionId,
+    },
+    {
+      $inc: {
+        "schedules.$.spotsLeft": booking.quantity,
+      },
+    },
+    options
+  );
+};
+
+export const cancelBooking = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const bookingId = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Bạn chưa đăng nhập" });
+    }
+
+    if (!mongoose.isValidObjectId(bookingId)) {
+      return res.status(400).json({ message: "Booking không hợp lệ" });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      user: userId,
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Không tìm thấy booking" });
+    }
+
+    if (booking.status === "cancelled") {
+      return res.status(200).json({
+        message: "Booking đã được hủy trước đó",
+        booking,
+      });
+    }
+
+    if (booking.status !== "pending_payment") {
+      return res.status(409).json({
+        message: "Chỉ có thể tự hủy đơn đặt chỗ đang chờ thanh toán",
+      });
+    }
+
+    booking.status = "cancelled";
+    booking.paymentStatus = "failed";
+    await booking.save();
+
+    // Release spots back to workshop schedule
+    await releaseBookingSpots(booking);
+
+    return res.status(200).json({
+      message: "Đã hủy booking thành công",
+      booking,
+    });
+  } catch (error) {
+    console.error("Cancel booking error:", error);
+    return res.status(500).json({
+      message: error.message ?? "Không thể hủy booking",
+    });
+  }
+};
+

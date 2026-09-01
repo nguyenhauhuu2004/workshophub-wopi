@@ -1413,21 +1413,6 @@ function PreviewStep({ form }: { form: WorkshopFormState }) {
           </div>
         </section>
       )}
-
-      <div className="rounded-2xl border border-[#dce6d9] bg-[#f2f7ef] p-4">
-        <div className="flex items-start gap-3">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#356e4a]" />
-          <div>
-            <p className="text-sm font-bold text-[#284936]">
-              Sẵn sàng đăng workshop
-            </p>
-            <p className="mt-1 text-sm leading-6 text-[#6f7e75]">
-              Khi bấm “Đăng workshop”, toàn bộ dữ liệu và file media sẽ được gửi
-              trong một request duy nhất.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import CreateWorkshopPage from "./pages/CreateWorkshopPage2.tsx";
 import HostDashboardPage from "@/pages/HostDashboardPage";
 import MyBookingsPage from "./pages/MyBookingsPage.tsx";
 import EditWorkshopPage from "./pages/EditWorkshopPage.tsx";
+import PaymentPage from "./pages/PaymentPage";
 import MainLayout from "@/components/layout/MainLayout";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
@@ -48,6 +49,7 @@ function App() {
               {/* User Protected routes */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/my-bookings" element={<MyBookingsPage />} />
+                <Route path="/payment/:bookingId" element={<PaymentPage />} />
               </Route>
 
               {/* Host Protected routes */}
