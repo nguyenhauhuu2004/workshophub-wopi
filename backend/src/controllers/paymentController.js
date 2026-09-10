@@ -4,8 +4,48 @@ import mongoose from "mongoose";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
 import { releaseBookingSpots } from "./bookingController.js";
+import {
+  sendPaymentInstructionsEmail,
+  sendTicketConfirmationEmail,
+} from "../services/emailService.js";
 
 const DEFAULT_EXPIRATION_MS = 15 * 60 * 1000; // 15 phút
+
+// Chống race condition khi nhiều request tạo payment cho cùng bookingId đến đồng thời
+const pendingPaymentCreations = new Map();
+
+/**
+ * Gửi email vé điện tử + QR checkin đảm bảo chỉ gửi 1 lần duy nhất
+ */
+const triggerTicketEmailOnce = async (bookingId) => {
+  try {
+    const updated = await Booking.findOneAndUpdate(
+      {
+        _id: bookingId,
+        ticketEmailSent: { $ne: true },
+      },
+      {
+        $set: { ticketEmailSent: true },
+      }
+    );
+
+    if (!updated) {
+      console.log(`[EMAIL] Vé cho booking ${bookingId} đã được gửi trước đó, bỏ qua.`);
+      return;
+    }
+
+    const populatedBooking = await Booking.findById(bookingId).populate({
+      path: "workshop",
+      select: "title thumbnail location price duration",
+    });
+
+    if (populatedBooking) {
+      await sendTicketConfirmationEmail(populatedBooking);
+    }
+  } catch (err) {
+    console.error("Failed to send ticket email:", err);
+  }
+};
 
 const getBankConfig = () => {
   return {
@@ -107,6 +147,22 @@ export const createOrGetPayment = async (req, res) => {
       return res.status(400).json({ message: "Mã booking không hợp lệ" });
     }
 
+    const bookingKey = String(bookingId);
+
+    // Nếu đang có một tiến trình tạo payment cho booking này đang chạy dở (chống duplicate / race condition)
+    if (pendingPaymentCreations.has(bookingKey)) {
+      try {
+        const inFlightResult = await pendingPaymentCreations.get(bookingKey);
+        return res.status(200).json({
+          message: "Lấy thông tin thanh toán hiện tại",
+          payment: inFlightResult.payment,
+          booking: inFlightResult.booking,
+        });
+      } catch (inFlightErr) {
+        // Nếu inFlight lỗi thì tiếp tục bên dưới
+      }
+    }
+
     const booking = await Booking.findById(bookingId).populate({
       path: "workshop",
       select: "title thumbnail location price duration",
@@ -149,60 +205,91 @@ export const createOrGetPayment = async (req, res) => {
       });
     }
 
-    // Đánh dấu các payment pending cũ đã hết hạn
-    await Payment.updateMany(
-      {
-        booking: booking._id,
-        status: "pending",
-        expiresAt: { $lte: now },
-      },
-      { $set: { status: "expired" } }
-    );
+    // Wrap việc tạo payment vào promise để các request đồng thời khác phải đợi
+    const createPromise = (async () => {
+      // Đánh dấu các payment pending cũ đã hết hạn
+      await Payment.updateMany(
+        {
+          booking: booking._id,
+          status: "pending",
+          expiresAt: { $lte: now },
+        },
+        { $set: { status: "expired" } }
+      );
 
-    // 2. Tạo Payment mới với mã tham chiếu đảm bảo duy nhất
-    const bankConfig = getBankConfig();
-    const paymentReference = await generatePaymentReference();
+      // 2. Tạo Payment mới với mã tham chiếu đảm bảo duy nhất
+      const bankConfig = getBankConfig();
+      const paymentReference = await generatePaymentReference();
 
-    const qrResult = await generateVietQR({
-      accountNo: bankConfig.accountNo,
-      accountName: bankConfig.accountName,
-      bankBin: bankConfig.bankBin,
-      amount: booking.grossAmount,
-      addInfo: paymentReference,
-      template: bankConfig.template,
-      clientId: bankConfig.clientId,
-      apiKey: bankConfig.apiKey,
-    });
-
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const randomHex = crypto.randomBytes(4).toString("hex").toUpperCase();
-    const paymentCode = `PAY-${timestamp}-${randomHex}`;
-
-    const newPayment = await Payment.create({
-      paymentCode,
-      booking: booking._id,
-      user: userId,
-      amount: booking.grossAmount,
-      currency: "VND",
-      status: "pending",
-      paymentMethod: "vietqr",
-      paymentReference,
-      bankAccount: {
-        bankBin: bankConfig.bankBin,
-        bankName: bankConfig.bankName,
+      const qrResult = await generateVietQR({
         accountNo: bankConfig.accountNo,
         accountName: bankConfig.accountName,
-      },
-      qrCode: qrResult.qrCode,
-      qrDataURL: qrResult.qrDataURL,
-      expiresAt: new Date(Date.now() + DEFAULT_EXPIRATION_MS),
-    });
+        bankBin: bankConfig.bankBin,
+        amount: booking.grossAmount,
+        addInfo: paymentReference,
+        template: bankConfig.template,
+        clientId: bankConfig.clientId,
+        apiKey: bankConfig.apiKey,
+      });
 
-    return res.status(201).json({
-      message: "Tạo thông tin thanh toán VietQR thành công",
-      payment: newPayment,
-      booking,
-    });
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const randomHex = crypto.randomBytes(4).toString("hex").toUpperCase();
+      const paymentCode = `PAY-${timestamp}-${randomHex}`;
+
+      const newPayment = await Payment.create({
+        paymentCode,
+        booking: booking._id,
+        user: userId,
+        amount: booking.grossAmount,
+        currency: "VND",
+        status: "pending",
+        paymentMethod: "vietqr",
+        paymentReference,
+        bankAccount: {
+          bankBin: bankConfig.bankBin,
+          bankName: bankConfig.bankName,
+          accountNo: bankConfig.accountNo,
+          accountName: bankConfig.accountName,
+        },
+        qrCode: qrResult.qrCode,
+        qrDataURL: qrResult.qrDataURL,
+        expiresAt: new Date(Date.now() + DEFAULT_EXPIRATION_MS),
+      });
+
+      // Atomic check: chỉ gửi email hướng dẫn thanh toán 1 lần duy nhất cho mỗi booking
+      const shouldSendEmail = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          paymentEmailSent: { $ne: true },
+        },
+        {
+          $set: { paymentEmailSent: true },
+        }
+      );
+
+      if (shouldSendEmail) {
+        sendPaymentInstructionsEmail(booking, newPayment).catch((err) =>
+          console.error("Failed to send payment instructions email:", err),
+        );
+      } else {
+        console.log(`[EMAIL] Email thanh toán cho booking ${booking._id} đã được gửi trước đó, bỏ qua.`);
+      }
+
+      return { payment: newPayment, booking };
+    })();
+
+    pendingPaymentCreations.set(bookingKey, createPromise);
+
+    try {
+      const { payment: createdPayment } = await createPromise;
+      return res.status(201).json({
+        message: "Tạo thông tin thanh toán VietQR thành công",
+        payment: createdPayment,
+        booking,
+      });
+    } finally {
+      pendingPaymentCreations.delete(bookingKey);
+    }
   } catch (error) {
     console.error("Create payment error:", error);
     return res.status(500).json({
@@ -406,6 +493,13 @@ export const handlePaymentWebhook = async (req, res) => {
 
     console.log(`[PAYMENT CONFIRMED]: Payment ${payment.paymentCode} for Booking ${payment.booking?._id} confirmed.`);
 
+    /*
+     * Gửi email vé + QR check-in cho khách (chỉ gửi 1 lần duy nhất)
+     */
+    if (payment.booking) {
+      triggerTicketEmailOnce(payment.booking._id || payment.booking);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Xác nhận thanh toán thành công",
@@ -461,6 +555,8 @@ export const simulatePaymentSuccess = async (req, res) => {
           },
         }
       );
+
+      triggerTicketEmailOnce(payment.booking._id || payment.booking);
     }
 
     return res.status(200).json({
@@ -515,6 +611,8 @@ export const manualConfirmPayment = async (req, res) => {
           },
         }
       );
+
+      triggerTicketEmailOnce(payment.booking._id || payment.booking);
     }
 
     return res.status(200).json({

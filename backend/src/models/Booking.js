@@ -215,6 +215,16 @@ const bookingSchema = new mongoose.Schema(
       ref: "PromotionCampaign",
       default: null,
     },
+
+    paymentEmailSent: {
+      type: Boolean,
+      default: false,
+    },
+
+    ticketEmailSent: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

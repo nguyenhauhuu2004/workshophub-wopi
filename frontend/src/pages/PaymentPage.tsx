@@ -37,6 +37,7 @@ export default function PaymentPage() {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasRequestedRef = useRef<string | null>(null);
 
   // 1. Khởi tạo hoặc lấy Payment cho bookingId
   useEffect(() => {
@@ -45,6 +46,12 @@ export default function PaymentPage() {
       setLoading(false);
       return;
     }
+
+    // Tránh gửi 2 request song song khi React StrictMode remount trong development
+    if (hasRequestedRef.current === bookingId) {
+      return;
+    }
+    hasRequestedRef.current = bookingId;
 
     let active = true;
 

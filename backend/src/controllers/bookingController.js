@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 
 import Booking from "../models/Booking.js";
 import Workshop from "../models/Workshop.js";
+import {
+  sendHostNewBookingNotification,
+} from "../services/emailService.js";
 
 const TAX_RATE = 0.08;
 const PLATFORM_FEE_RATE = 0.05;
@@ -273,13 +276,23 @@ export const createBooking = async (req, res) => {
       },
       {
         path: "host",
-        select: "displayName username avatarUrl",
+        select: "displayName username avatarUrl email",
       },
       {
         path: "user",
         select: "displayName username avatarUrl email",
       },
     ]);
+
+    /*
+     * Gửi email thông báo cho host (fire-and-forget).
+     *
+     * Email thanh toán cho khách sẽ gửi khi tạo payment.
+     * Lỗi email không ảnh hưởng tới response.
+     */
+    sendHostNewBookingNotification(createdBooking).catch((err) =>
+      console.error("Failed to send host notification email:", err),
+    );
 
     return res.status(201).json({
       message: "Đặt chỗ thành công",
