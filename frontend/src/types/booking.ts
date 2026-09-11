@@ -33,6 +33,8 @@ export type BookingPayoutStatus = "pending" | "available" | "paid" | "held";
 
 export type BookingCheckInMethod = "qr" | "manual";
 
+export type BookingPaymentMethod = "qr" | "pay_at_venue";
+
 export type BookingSessionSnapshot = {
   startAt: string;
   seatsTotal: number;
@@ -74,6 +76,10 @@ export type Booking = {
 
   attendeeName: string;
   attendeeEmail: string;
+  attendeePhone?: string;
+
+  /** Phương thức thanh toán người dùng đã chọn */
+  paymentMethod?: BookingPaymentMethod;
 
   quantity: number;
 
@@ -111,11 +117,16 @@ export type CreateBookingData = {
   workshopId: string;
   sessionId: string;
   quantity: number;
+  paymentMethod?: BookingPaymentMethod;
+  attendeeName?: string;
+  attendeeEmail?: string;
+  attendeePhone?: string;
 };
 
 export type CreateBookingResponse = {
   message: string;
   booking: Booking;
+  paymentMethod?: BookingPaymentMethod;
 };
 
 export type BookingListResponse = {

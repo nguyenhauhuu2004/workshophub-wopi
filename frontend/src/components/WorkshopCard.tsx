@@ -2,6 +2,7 @@ import { CalendarDays, Clock3, Heart, MapPin, Star, Users, Navigation } from "lu
 import { Link } from "react-router-dom";
 
 import type { Workshop } from "@/types/workshop";
+import { formatDistance } from "@/utils/mapUtils";
 
 type WorkshopCardData = Workshop & {
   sponsored?: boolean;
@@ -14,6 +15,7 @@ type WorkshopCardProps = {
   workshop: WorkshopCardData;
   isFavorite?: boolean;
   onToggleFavorite?: (workshopId: string) => void;
+  showDistance?: boolean;
 };
 
 const formatPrice = (price: number) => {
@@ -72,6 +74,7 @@ const WorkshopCard = ({
   workshop,
   isFavorite = false,
   onToggleFavorite,
+  showDistance = false,
 }: WorkshopCardProps) => {
   const nextSchedule = getNextSchedule(workshop);
 
@@ -164,10 +167,10 @@ const WorkshopCard = ({
             </span>
           </div>
 
-          {workshop.distanceMeters !== undefined && (
+          {showDistance && workshop.distanceMeters !== undefined && (
             <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-primary">
               <Navigation className="size-3.5 shrink-0" />
-              <span>Cách bạn {(workshop.distanceMeters / 1000).toFixed(1).replace('.', ',')} km</span>
+              <span>Cách bạn {formatDistance(workshop.distanceMeters)}</span>
             </div>
           )}
           {/* 

@@ -5,6 +5,7 @@ import Booking from "../models/Booking.js";
 import Workshop from "../models/Workshop.js";
 import {
   sendHostNewBookingNotification,
+  sendPayAtVenueConfirmationEmail,
 } from "../services/emailService.js";
 
 const TAX_RATE = 0.08;
@@ -56,7 +57,15 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    const { workshopId, sessionId, quantity } = req.body;
+    const {
+      workshopId,
+      sessionId,
+      quantity,
+      paymentMethod = "qr",
+      attendeeName: bodyAttendeeName,
+      attendeeEmail: bodyAttendeeEmail,
+      attendeePhone: bodyAttendeePhone,
+    } = req.body;
 
     if (
       !mongoose.isValidObjectId(workshopId) ||
@@ -64,6 +73,19 @@ export const createBooking = async (req, res) => {
     ) {
       return res.status(400).json({
         message: "Workshop hoặc lịch workshop không hợp lệ",
+      });
+    }
+
+    if (paymentMethod === "qr") {
+      return res.status(400).json({
+        message:
+          "Phương thức thanh toán qua mã QR hiện đang tạm ngưng. Vui lòng chọn thanh toán tại workshop.",
+      });
+    }
+
+    if (!["pay_at_venue"].includes(paymentMethod)) {
+      return res.status(400).json({
+        message: "Phương thức thanh toán không hợp lệ",
       });
     }
 
@@ -124,14 +146,30 @@ export const createBooking = async (req, res) => {
       });
     }
 
+    /*
+     * Thông tin người tham dự: ưu tiên body, fallback về tài khoản.
+     */
     const attendeeName =
-      req.user.displayName || req.user.username || "Khách hàng";
+      String(bodyAttendeeName || "").trim() ||
+      req.user.displayName ||
+      req.user.username ||
+      "Khách hàng";
 
-    const attendeeEmail = req.user.email;
+    const attendeeEmail =
+      String(bodyAttendeeEmail || "").trim() || req.user.email;
+
+    const attendeePhone =
+      String(bodyAttendeePhone || "").trim() || req.user.phone || "";
 
     if (!attendeeEmail) {
       return res.status(400).json({
-        message: "Tài khoản chưa có email để đặt chỗ",
+        message: "Thiếu email người tham dự",
+      });
+    }
+
+    if (!attendeePhone) {
+      return res.status(400).json({
+        message: "Số điện thoại người tham dự là bắt buộc",
       });
     }
 
@@ -207,6 +245,22 @@ export const createBooking = async (req, res) => {
 
       const hostNetAmount = subtotal - discountAmount - platformFee;
 
+      /*
+       * "pay_at_venue": xác nhận ngay, không qua payment flow.
+       * "qr": chờ thanh toán VietQR.
+       */
+      const isPayAtVenue = paymentMethod === "pay_at_venue";
+
+      /*
+       * Tạo QR check-in token ngay cho pay_at_venue
+       * (với qr thì token được tạo bởi payment flow sau khi xác nhận).
+       */
+      let qrTokenHash = undefined;
+      if (isPayAtVenue) {
+        const ticketCode = crypto.randomBytes(16).toString("hex");
+        qrTokenHash = Booking.hashTicketCode(ticketCode);
+      }
+
       const bookings = await Booking.create(
         [
           {
@@ -230,6 +284,9 @@ export const createBooking = async (req, res) => {
 
             attendeeName,
             attendeeEmail,
+            attendeePhone,
+
+            paymentMethod,
 
             quantity: normalizedQuantity,
 
@@ -243,14 +300,25 @@ export const createBooking = async (req, res) => {
             platformFee,
             hostNetAmount,
 
-            paymentStatus: "pending",
+            paymentStatus: isPayAtVenue ? "unpaid" : "pending",
 
             /*
-             * Đặt trạng thái ban đầu là chờ thanh toán VietQR.
+             * pay_at_venue: xác nhận ngay (vé được gửi liền)
+             * qr: chờ thanh toán
              */
-            status: "pending_payment",
+            status: isPayAtVenue ? "confirmed" : "pending_payment",
+
+            paidAt: null,
+
+            ...(qrTokenHash ? { qrTokenHash } : {}),
 
             payoutStatus: "pending",
+
+            /*
+             * pay_at_venue: đánh dấu ticketEmailSent = true sau khi gửi
+             * qr: email ticket gửi sau khi webhook xác nhận
+             */
+            ticketEmailSent: false,
           },
         ],
         {
@@ -286,18 +354,36 @@ export const createBooking = async (req, res) => {
 
     /*
      * Gửi email thông báo cho host (fire-and-forget).
-     *
-     * Email thanh toán cho khách sẽ gửi khi tạo payment.
-     * Lỗi email không ảnh hưởng tới response.
      */
     sendHostNewBookingNotification(createdBooking).catch((err) =>
       console.error("Failed to send host notification email:", err),
     );
 
+    /*
+     * Nếu pay_at_venue: gửi email vé ngay lập tức.
+     * Đánh dấu ticketEmailSent = true để tránh gửi lại.
+     */
+    if (paymentMethod === "pay_at_venue") {
+      // Đánh dấu atomic để tránh gửi trùng
+      const shouldSend = await Booking.findOneAndUpdate(
+        { _id: createdBooking._id, ticketEmailSent: { $ne: true } },
+        { $set: { ticketEmailSent: true } },
+      );
+      if (shouldSend) {
+        sendPayAtVenueConfirmationEmail(createdBooking).catch((err) =>
+          console.error("Failed to send pay_at_venue ticket email:", err),
+        );
+      }
+    }
+
     return res.status(201).json({
-      message: "Đặt chỗ thành công",
+      message:
+        paymentMethod === "pay_at_venue"
+          ? "Đặt chỗ thành công! Vé điện tử đã được gửi vào email của bạn."
+          : "Đặt chỗ thành công",
 
       booking: createdBooking,
+      paymentMethod,
     });
   } catch (error) {
     console.error("Create booking error:", error);
@@ -335,6 +421,7 @@ export const createBooking = async (req, res) => {
     await mongoSession.endSession();
   }
 };
+
 
 const BOOKING_STATUSES = new Set([
   "pending_payment",
@@ -711,14 +798,23 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
-    if (booking.status !== "pending_payment") {
+    const canCancel =
+      booking.status === "pending_payment" ||
+      (booking.paymentMethod === "pay_at_venue" &&
+        booking.status === "confirmed" &&
+        booking.paymentStatus !== "paid");
+
+    if (!canCancel) {
       return res.status(409).json({
-        message: "Chỉ có thể tự hủy đơn đặt chỗ đang chờ thanh toán",
+        message:
+          "Chỉ có thể hủy đơn đang chờ thanh toán hoặc đơn thanh toán tại workshop chưa check-in",
       });
     }
 
     booking.status = "cancelled";
-    booking.paymentStatus = "failed";
+    if (booking.paymentMethod !== "pay_at_venue") {
+      booking.paymentStatus = "failed";
+    }
     await booking.save();
 
     // Release spots back to workshop schedule

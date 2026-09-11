@@ -392,6 +392,10 @@ export const getHostBookings = async (req, res) => {
 
       attendeeEmail: booking.attendeeEmail,
 
+      attendeePhone: booking.attendeePhone ?? "",
+
+      paymentMethod: booking.paymentMethod ?? "qr",
+
       workshopTitle: booking.workshop?.title ?? "Workshop đã xóa",
 
       sessionLabel: booking.sessionLabel,

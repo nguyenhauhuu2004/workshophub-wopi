@@ -96,3 +96,50 @@ export const updateProfile = async (req, res) => {
     });
   }
 };
+
+/**
+ * Lưu thông tin người tham dự mặc định vào User document.
+ * Dùng để tự điền sẵn form đặt chỗ ở lần tiếp theo.
+ */
+export const saveDefaultAttendee = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Bạn chưa đăng nhập" });
+    }
+
+    const { name, email, phone } = req.body;
+
+    if (!name || !email || !phone) {
+      return res.status(400).json({
+        message: "Họ tên, email và số điện thoại người tham dự là bắt buộc",
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          "defaultAttendee.name": String(name).trim(),
+          "defaultAttendee.email": String(email).trim().toLowerCase(),
+          "defaultAttendee.phone": String(phone || "").trim(),
+        },
+      },
+      { new: true, runValidators: true },
+    ).select("defaultAttendee");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    return res.status(200).json({
+      message: "Đã lưu thông tin người tham dự mặc định",
+      defaultAttendee: updatedUser.defaultAttendee,
+    });
+  } catch (error) {
+    console.error("Save default attendee error:", error);
+    return res.status(500).json({ message: "Không thể lưu thông tin" });
+  }
+};
+

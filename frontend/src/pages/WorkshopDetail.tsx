@@ -1,11 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-import "@goongmaps/goong-js/dist/goong-js.css";
-
-import goongjs, {
-  type Map as GoongMap,
-  type Marker as GoongMarker,
-} from "@goongmaps/goong-js";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CalendarDays, Clock3, Loader2, MapPin, Users } from "lucide-react";
 
@@ -13,194 +6,32 @@ import axios from "axios";
 import { toast } from "sonner";
 import { useNavigate, useParams } from "react-router";
 
-import BookingCard from "@/components/BookingCard";
+import BookingCard, { type FullBookingData } from "@/components/BookingCard";
+import MobileBookingDrawer from "@/components/MobileBookingDrawer";
 
-import type { BookingCardData, BookingSession } from "@/types/booking";
+import type { BookingSession } from "@/types/booking";
 
 import ThumbnailSlider, {
   type ProductMedia,
 } from "@/components/thumnailslider";
 
 import WorkshopReviews from "@/components/WorkshopReviews";
+import WorkshopMapSection from "@/components/WorkshopMapSection";
 import { workshopService } from "@/services/workshopService";
 import { bookingService } from "@/services/bookingService";
+import { userService } from "@/services/userService";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 import type { Workshop } from "@/types/workshop";
 
-const DEFAULT_MAP_ZOOM = 15;
 const NEARBY_DISTANCE = 10_000;
-
-// const formatScheduleDate = (startAt: string) => {
-//   const date = new Date(startAt);
-
-//   if (Number.isNaN(date.getTime())) {
-//     return "Không xác định";
-//   }
-
-//   return date.toLocaleDateString("vi-VN", {
-//     weekday: "short",
-//     day: "2-digit",
-//     month: "2-digit",
-//     year: "numeric",
-//   });
-// };
-
-// const formatScheduleTime = (startAt: string) => {
-//   const date = new Date(startAt);
-
-//   if (Number.isNaN(date.getTime())) {
-//     return "";
-//   }
-
-//   return date.toLocaleTimeString("vi-VN", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-// };
-
-type GoongWorkshopMapProps = {
-  workshop: Workshop;
-  nearbyWorkshops: Workshop[];
-  onWorkshopClick: (workshopId: string) => void;
-};
-
-function GoongWorkshopMap({
-  workshop,
-  nearbyWorkshops,
-  onWorkshopClick,
-}: GoongWorkshopMapProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const mapRef = useRef<GoongMap | null>(null);
-
-  const onWorkshopClickRef = useRef(onWorkshopClick);
-
-  const [mapError, setMapError] = useState<string | null>(null);
-
-  useEffect(() => {
-    onWorkshopClickRef.current = onWorkshopClick;
-  }, [onWorkshopClick]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-
-    if (!container) {
-      return;
-    }
-
-    const accessToken = import.meta.env.VITE_GOONG_MAPTILES_KEY;
-
-    if (!accessToken) {
-      setMapError("Chưa cấu hình VITE_GOONG_MAPTILES_KEY");
-
-      return;
-    }
-
-    const coordinates = workshop.location.coordinates.coordinates;
-
-    const [longitude, latitude] = coordinates;
-
-    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
-      setMapError("Tọa độ workshop không hợp lệ");
-
-      return;
-    }
-
-    setMapError(null);
-    goongjs.accessToken = accessToken;
-
-    const map = new goongjs.Map({
-      container,
-      style: "https://tiles.goong.io/assets/goong_map_web.json",
-      center: [longitude, latitude],
-      zoom: DEFAULT_MAP_ZOOM,
-    });
-
-    map.addControl(new goongjs.NavigationControl(), "top-right");
-
-    mapRef.current = map;
-
-    const bounds = new goongjs.LngLatBounds();
-
-    const markers: GoongMarker[] = [];
-
-    const addMarker = (item: Workshop, isCurrent: boolean) => {
-      const [itemLongitude, itemLatitude] =
-        item.location.coordinates.coordinates;
-
-      if (!Number.isFinite(itemLongitude) || !Number.isFinite(itemLatitude)) {
-        return;
-      }
-
-      const popup = new goongjs.Popup({
-        offset: 24,
-      }).setText(`${item.title} — ${item.location.address}`);
-
-      const marker = new goongjs.Marker({
-        color: isCurrent ? "#214c36" : "#d97706",
-      })
-        .setLngLat([itemLongitude, itemLatitude])
-        .setPopup(popup)
-        .addTo(map);
-
-      if (!isCurrent) {
-        const element = marker.getElement();
-
-        element.style.cursor = "pointer";
-
-        element.addEventListener("click", () => {
-          onWorkshopClickRef.current(item._id);
-        });
-      }
-
-      bounds.extend([itemLongitude, itemLatitude]);
-
-      markers.push(marker);
-    };
-
-    addMarker(workshop, true);
-
-    nearbyWorkshops.forEach((item) => {
-      addMarker(item, false);
-    });
-
-    if (nearbyWorkshops.length > 0 && !bounds.isEmpty()) {
-      map.fitBounds(bounds, {
-        padding: 70,
-        maxZoom: DEFAULT_MAP_ZOOM,
-      });
-    }
-
-    return () => {
-      markers.forEach((marker) => {
-        marker.remove();
-      });
-
-      map.remove();
-      mapRef.current = null;
-    };
-  }, [workshop, nearbyWorkshops]);
-
-  if (mapError) {
-    return (
-      <div className="mt-5 flex h-[420px] items-center justify-center rounded-2xl border bg-muted px-6 text-center text-sm text-muted-foreground">
-        {mapError}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="mt-5 h-[420px] w-full overflow-hidden rounded-2xl border"
-    />
-  );
-}
 
 export function WorkshopDetail() {
   const { id } = useParams<{ id: string }>();
 
   const navigate = useNavigate();
+
+  const { user, setUser } = useAuthStore();
 
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
 
@@ -275,6 +106,93 @@ export function WorkshopDetail() {
     };
   }, [id]);
 
+  /** Thông tin người tham dự mặc định: ưu tiên defaultAttendee > user profile */
+  const defaultAttendee = useMemo(() => {
+    if (!user) return undefined;
+    if (user.defaultAttendee?.name) {
+      return user.defaultAttendee;
+    }
+    return {
+      name: user.displayName || user.username || "",
+      email: user.email || "",
+      phone: user.phone || "",
+    };
+  }, [user]);
+
+  const handleBook = useCallback(
+    async (bookingData: FullBookingData) => {
+      if (!workshop || booking) {
+        return;
+      }
+
+      if (
+        !bookingData.attendeeInfo.name.trim() ||
+        !bookingData.attendeeInfo.email.trim() ||
+        !bookingData.attendeeInfo.phone.trim()
+      ) {
+        toast.error(
+          "Vui lòng điền đầy đủ họ tên, email và số điện thoại người tham dự",
+        );
+        return;
+      }
+
+      try {
+        setBooking(true);
+
+        // Lưu thông tin mặc định nếu người dùng tích "Lưu cho lần sau"
+        if (bookingData.saveAttendeeAsDefault && user) {
+          try {
+            await userService.saveDefaultAttendee({
+              name: bookingData.attendeeInfo.name,
+              email: bookingData.attendeeInfo.email,
+              phone: bookingData.attendeeInfo.phone,
+            });
+            setUser({
+              ...user,
+              defaultAttendee: {
+                name: bookingData.attendeeInfo.name,
+                email: bookingData.attendeeInfo.email,
+                phone: bookingData.attendeeInfo.phone,
+              },
+            });
+          } catch (saveErr) {
+            console.warn("Không thể lưu thông tin mặc định:", saveErr);
+          }
+        }
+
+        const result = await bookingService.createBooking({
+          workshopId: workshop._id,
+          sessionId: bookingData.session.id,
+          quantity: bookingData.quantity,
+          paymentMethod: bookingData.paymentMethod,
+          attendeeName: bookingData.attendeeInfo.name,
+          attendeeEmail: bookingData.attendeeInfo.email,
+          attendeePhone: bookingData.attendeeInfo.phone,
+        });
+
+        toast.success(result.message ?? "Đặt chỗ thành công!");
+
+        if (bookingData.paymentMethod === "pay_at_venue") {
+          navigate("/my-bookings");
+        } else {
+          navigate(`/payment/${result.booking._id}`);
+        }
+      } catch (err) {
+        console.error("Booking error:", err);
+
+        if (axios.isAxiosError(err)) {
+          toast.error(err.response?.data?.message ?? "Không thể đặt chỗ");
+          return;
+        }
+
+        toast.error("Không thể đặt chỗ");
+      } finally {
+        setBooking(false);
+      }
+    },
+    [workshop, booking, user, navigate, setUser],
+  );
+
   const media = useMemo<ProductMedia[]>(() => {
     if (!workshop) {
       return [];
@@ -315,6 +233,7 @@ export function WorkshopDetail() {
 
     return items;
   }, [workshop]);
+
   const sessions = useMemo<BookingSession[]>(() => {
     if (!workshop) {
       return [];
@@ -322,11 +241,8 @@ export function WorkshopDetail() {
 
     return workshop.schedules.map((schedule, index) => ({
       id: schedule._id ?? `schedule-${index}`,
-
       startAt: schedule.startAt,
-
       seatsTotal: schedule.seatsTotal,
-
       spotsLeft: schedule.spotsLeft,
     }));
   }, [workshop]);
@@ -341,39 +257,6 @@ export function WorkshopDetail() {
     );
   }, [workshop]);
 
-  const handleBook = async (bookingData: BookingCardData) => {
-    if (!workshop || booking) {
-      return;
-    }
-
-    try {
-      setBooking(true);
-
-      const result = await bookingService.createBooking({
-        workshopId: workshop._id,
-
-        sessionId: bookingData.session.id,
-
-        quantity: bookingData.quantity,
-      });
-
-      toast.success(result.message ?? "Đặt chỗ thành công! Đang chuyển tới trang thanh toán...");
-
-      navigate(`/payment/${result.booking._id}`);
-    } catch (error) {
-      console.error("Booking error:", error);
-
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message ?? "Không thể đặt chỗ");
-
-        return;
-      }
-
-      toast.error("Không thể đặt chỗ");
-    } finally {
-      setBooking(false);
-    }
-  };
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -405,8 +288,8 @@ export function WorkshopDetail() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <main className="mx-auto w-full max-w-[1440px] px-4 pt-8 pb-28 sm:px-6 lg:px-8 lg:pb-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">
           {media.length > 0 ? (
             <ThumbnailSlider media={media} />
@@ -502,26 +385,24 @@ export function WorkshopDetail() {
           )}
 
           <section className="mt-10 border-t pt-8">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-1 size-5 shrink-0 text-primary" />
+            <div className="mb-2 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <MapPin className="size-5" />
+              </div>
 
               <div>
-                <h2 className="text-2xl font-semibold">Vị trí workshop</h2>
-
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {workshop.location.address}
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Vị trí & Chỉ đường
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Xem vị trí workshop trên bản đồ, các workshop lân cận và nhận
+                  chỉ đường
                 </p>
-
-                {workshop.location.notes && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Ghi chú: {workshop.location.notes}
-                  </p>
-                )}
               </div>
             </div>
 
-            <GoongWorkshopMap
-              workshop={workshop}
+            <WorkshopMapSection
+              currentWorkshop={workshop}
               nearbyWorkshops={nearbyWorkshops}
               onWorkshopClick={(workshopId) => {
                 navigate(`/workshops/${workshopId}`);
@@ -532,13 +413,14 @@ export function WorkshopDetail() {
           <WorkshopReviews workshopId={workshop._id} />
         </div>
 
-        <aside className="lg:sticky lg:top-24 lg:h-fit">
+        <aside className="hidden lg:block lg:sticky lg:top-24 lg:h-fit">
           <BookingCard
             className="h-fit"
             pricePerPerson={workshop.price}
             sessions={sessions}
             taxRate={0.08}
             location={workshop.location.address}
+            defaultAttendee={defaultAttendee}
             onBook={handleBook}
             disabled={booking}
           />
@@ -551,6 +433,15 @@ export function WorkshopDetail() {
           )}
         </aside>
       </div>
+
+      <MobileBookingDrawer
+        pricePerPerson={workshop.price}
+        sessions={sessions}
+        location={workshop.location.address}
+        defaultAttendee={defaultAttendee}
+        disabled={booking}
+        onBook={handleBook}
+      />
     </main>
   );
 }

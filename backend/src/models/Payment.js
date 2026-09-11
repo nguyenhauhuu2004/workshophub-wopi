@@ -45,7 +45,7 @@ const paymentSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["vietqr"],
+      enum: ["vietqr", "pay_at_venue"],
       default: "vietqr",
     },
 

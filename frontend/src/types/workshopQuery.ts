@@ -22,6 +22,7 @@ export type WorkshopSearchParams = {
   minRating?: number;
   dateFrom?: string;
   dateTo?: string;
+  address?: string;
   city?: string;
   district?: string;
   ward?: string;

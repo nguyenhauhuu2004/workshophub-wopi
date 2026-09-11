@@ -35,6 +35,10 @@ export default function LocationAutocomplete({ onSelectLocation, defaultValue = 
   }, []);
 
   useEffect(() => {
+    setInput(defaultValue);
+  }, [defaultValue]);
+
+  useEffect(() => {
     if (!input.trim()) {
       setPredictions([]);
       return;
@@ -44,19 +48,25 @@ export default function LocationAutocomplete({ onSelectLocation, defaultValue = 
     // but we can't reliably detect that, so just debounce search.
     const timeout = setTimeout(async () => {
       try {
-        
         const results = await workshopService.searchPlaces(input);
         setPredictions(results || []);
         setIsOpen(true);
       } catch (err) {
         console.error(err);
-      } finally {
-        
       }
     }, 400);
 
     return () => clearTimeout(timeout);
   }, [input]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (predictions.length > 0) {
+        void handleSelect(predictions[0]);
+      }
+    }
+  };
 
   const handleSelect = async (place: GoongPlacePrediction) => {
     setInput(place.description);
@@ -111,6 +121,7 @@ export default function LocationAutocomplete({ onSelectLocation, defaultValue = 
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           onFocus={() => { if (predictions.length > 0) setIsOpen(true) }}
           placeholder="Tìm địa điểm (Quận 1, Hà Nội...)"
           className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

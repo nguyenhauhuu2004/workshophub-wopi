@@ -8,6 +8,12 @@ export type UpdateProfilePayload = {
   bio: string;
 };
 
+export type DefaultAttendeePayload = {
+  name: string;
+  email: string;
+  phone?: string;
+};
+
 export const userService = {
   uploadAvatar: async (formData: FormData) => {
     const res = await api.post("/users/uploadAvatar", formData, {
@@ -25,4 +31,9 @@ export const userService = {
 
     return data;
   },
+  saveDefaultAttendee: async (payload: DefaultAttendeePayload) => {
+    const { data } = await api.patch("/users/me/default-attendee", payload);
+    return data;
+  },
 };
+

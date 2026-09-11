@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 
 import WorkshopCard from "@/components/WorkshopCard";
+import AIChatWidget from "@/components/AIChatWidget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -767,6 +768,8 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      <AIChatWidget />
     </div>
   );
 }

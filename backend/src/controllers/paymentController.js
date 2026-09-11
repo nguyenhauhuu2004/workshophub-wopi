@@ -180,6 +180,14 @@ export const createOrGetPayment = async (req, res) => {
       return res.status(400).json({ message: "Đơn đặt chỗ này đã bị hủy" });
     }
 
+    if (booking.paymentMethod === "pay_at_venue") {
+      return res.status(200).json({
+        message: "Đơn đặt chỗ này thanh toán trực tiếp tại workshop",
+        alreadyPaid: true,
+        booking,
+      });
+    }
+
     if (booking.paymentStatus === "paid" || booking.status === "confirmed") {
       return res.status(200).json({
         message: "Đơn đặt chỗ này đã được thanh toán",

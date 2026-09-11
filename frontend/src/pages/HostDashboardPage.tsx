@@ -286,6 +286,8 @@ export default function HostDashboardPage() {
         bookingCode: checkedInBooking.bookingCode,
         attendeeName: checkedInBooking.attendeeName,
         attendeeEmail: checkedInBooking.attendeeEmail,
+        attendeePhone: checkedInBooking.attendeePhone,
+        paymentMethod: checkedInBooking.paymentMethod,
         workshopTitle: workshop?.title ?? "Workshop",
         sessionLabel: checkedInBooking.sessionLabel,
         quantity: checkedInBooking.quantity,
@@ -795,6 +797,7 @@ function BookingsTab({ bookings, search, onSearchChange }: BookingsTabProps) {
 
                   <p className="mt-1 text-xs text-[#718078]">
                     {booking.attendeeEmail}
+                    {booking.attendeePhone ? ` • ${booking.attendeePhone}` : ""}
                   </p>
                 </td>
 
@@ -813,7 +816,20 @@ function BookingsTab({ bookings, search, onSearchChange }: BookingsTabProps) {
                 </td>
 
                 <td className="px-5 py-4">
-                  <StatusBadge value={booking.paymentStatus} />
+                  <div className="flex flex-col items-start gap-1">
+                    <span
+                      className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${
+                        booking.paymentMethod === "pay_at_venue"
+                          ? "border border-amber-200 bg-amber-50 text-amber-800"
+                          : "border border-blue-200 bg-blue-50 text-blue-700"
+                      }`}
+                    >
+                      {booking.paymentMethod === "pay_at_venue"
+                        ? "Tại workshop"
+                        : "VietQR"}
+                    </span>
+                    <StatusBadge value={booking.paymentStatus} />
+                  </div>
                 </td>
 
                 <td className="px-5 py-4">
@@ -923,11 +939,30 @@ function CheckInTab({
             <p className="mt-4 text-lg font-bold">Check-in thành công</p>
 
             <dl className="mt-5 space-y-4 text-sm">
-              <InfoRow label="Khách" value={lastCheckIn.attendeeName} />
+              <InfoRow
+                label="Khách"
+                value={
+                  lastCheckIn.attendeePhone
+                    ? `${lastCheckIn.attendeeName} (${lastCheckIn.attendeePhone})`
+                    : lastCheckIn.attendeeName
+                }
+              />
               <InfoRow label="Mã đơn" value={lastCheckIn.bookingCode} />
               <InfoRow label="Workshop" value={lastCheckIn.workshopTitle} />
               <InfoRow label="Lịch" value={lastCheckIn.sessionLabel} />
               <InfoRow label="Số khách" value={String(lastCheckIn.quantity)} />
+              <InfoRow
+                label="Hình thức"
+                value={
+                  lastCheckIn.paymentMethod === "pay_at_venue"
+                    ? "Thanh toán tại workshop"
+                    : "VietQR"
+                }
+              />
+              <InfoRow
+                label="Thanh toán"
+                value={`Đã xác nhận (${formatMoney(lastCheckIn.grossAmount)})`}
+              />
             </dl>
           </div>
         ) : (

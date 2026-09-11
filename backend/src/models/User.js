@@ -53,6 +53,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       sparse: true, // cho phép null, nhưng không được trùng
     },
+
+    /*
+     * Thông tin người tham dự mặc định — được lưu khi người dùng
+     * đánh dấu "Lưu thông tin này để dùng lần sau" trong form đặt chỗ.
+     * Sẽ tự điền sẵn ở lần đặt chỗ tiếp theo.
+     */
+    defaultAttendee: {
+      name: { type: String, trim: true, default: "" },
+      email: { type: String, trim: true, lowercase: true, default: "" },
+      phone: { type: String, trim: true, default: "" },
+    },
   },
   {
     timestamps: true,

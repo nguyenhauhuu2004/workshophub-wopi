@@ -85,6 +85,23 @@ const bookingSchema = new mongoose.Schema(
       lowercase: true,
     },
 
+    attendeePhone: {
+      type: String,
+      required: [true, "Số điện thoại người tham dự là bắt buộc"],
+      trim: true,
+    },
+
+    /*
+     * Phương thức thanh toán người dùng đã chọn khi đặt chỗ.
+     * "qr"           → chuyển khoản VietQR (luồng Payment hiện tại)
+     * "pay_at_venue" → thanh toán tiền mặt tại workshop
+     */
+    paymentMethod: {
+      type: String,
+      enum: ["qr", "pay_at_venue"],
+      default: "qr",
+    },
+
     quantity: {
       type: Number,
       required: true,

@@ -27,7 +27,7 @@ const getResendClient = () => {
 };
 
 const getFromEmail = () => {
-  return process.env.RESEND_FROM_EMAIL || "WOPI <onboarding@resend.dev>";
+  return process.env.RESEND_FROM_EMAIL || "WOPI <noreply@wopi.life>";
 };
 
 const getClientUrl = () => {
@@ -208,3 +208,45 @@ export const sendHostNewBookingNotification = async (populatedBooking) => {
     console.log(`[EMAIL] Đã gửi thông báo đơn mới tới host ${hostEmail}`);
   }
 };
+
+/* ─────────────────────────────────────────────
+ * 4. Email xác nhận đặt chỗ thành công (thanh toán tại workshop)
+ *    Gọi ngay khi tạo booking pay_at_venue — không qua payment flow
+ * ───────────────────────────────────────────── */
+
+/**
+ * @param {Object} populatedBooking – Booking document đã populate workshop
+ */
+export const sendPayAtVenueConfirmationEmail = async (populatedBooking) => {
+  const resend = getResendClient();
+
+  if (!resend) return;
+
+  const attendeeEmail = populatedBooking.attendeeEmail;
+
+  if (!attendeeEmail) {
+    console.warn("[EMAIL] Booking không có attendeeEmail, bỏ qua.");
+    return;
+  }
+
+  const html = buildTicketConfirmationHtml({
+    booking: populatedBooking,
+    clientUrl: getClientUrl(),
+  });
+
+  const workshopTitle = getWorkshopTitle(populatedBooking);
+
+  const { error } = await resend.emails.send({
+    from: getFromEmail(),
+    to: [resolveRecipient(attendeeEmail)],
+    subject: `🎫 Đặt chỗ thành công – ${workshopTitle} | WOPI`,
+    html,
+  });
+
+  if (error) {
+    console.error("[EMAIL] Gửi email xác nhận đặt chỗ tại chỗ thất bại:", error);
+  } else {
+    console.log(`[EMAIL] Đã gửi email xác nhận pay_at_venue tới ${attendeeEmail}`);
+  }
+};
+

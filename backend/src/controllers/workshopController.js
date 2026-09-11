@@ -956,6 +956,11 @@ export const getWorkshops = async (req, res) => {
       limit = 12,
     } = req.query;
 
+    const numericPage = Number(page);
+    const numericLimit = Number(limit);
+    const currentPage = Number.isInteger(numericPage) && numericPage > 0 ? numericPage : 1;
+    const pageSize = Number.isInteger(numericLimit) && numericLimit > 0 ? Math.min(numericLimit, 50) : 12;
+
     const filter = {
       status: "published",
     };
@@ -979,41 +984,151 @@ export const getWorkshops = async (req, res) => {
       }
     }
 
-    // Structured Location filtering
-    if (city) filter["location.city"] = city;
-    if (district) filter["location.district"] = district;
-    if (ward) filter["location.ward"] = ward;
-    if (address && !city && !district && !ward) {
-      filter["location.address"] = { $regex: escapeRegExp(address), $options: "i" };
-    }
-
-    // Geo Location filtering
-    const latitude = Number(lat);
-    const longitude = Number(lng);
-    const distance = Number(radius ?? 10000);
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      filter["location.coordinates"] = {
-        $near: {
-          $geometry: { type: "Point", coordinates: [longitude, latitude] },
-          $maxDistance: distance,
+    // Date filtering (overlap)
+    if (dateFrom || dateTo) {
+      filter.schedules = {
+        $elemMatch: {
+          startAt: dateTo ? { $lte: new Date(dateTo) } : { $exists: true },
+          endAt: dateFrom ? { $gte: new Date(dateFrom) } : { $exists: true },
         },
       };
     }
 
-    // Date filtering (overlap)
-    if (dateFrom || dateTo) {
-      const dateFilter = {};
-      if (dateFrom) dateFilter.$gte = new Date(dateFrom);
-      if (dateTo) dateFilter.$lte = new Date(dateTo);
-      
-      // If a workshop is from 10 to 12, and we search 11, it overlaps if startAt <= 11 AND endAt >= 11
-      // For general overlap of [start1, end1] and [start2, end2]: start1 <= end2 AND end1 >= start2
-      filter.schedules = {
-        $elemMatch: {
-          startAt: dateTo ? { $lte: new Date(dateTo) } : { $exists: true },
-          endAt: dateFrom ? { $gte: new Date(dateFrom) } : { $exists: true }
+    // Geo & Location filtering
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    const hasGeo = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+    // Xác định chế độ "Gần tôi": Khi có tọa độ, yêu cầu sort distance_asc và KHÔNG tìm theo tên khu vực cụ thể
+    const isNearMe = hasGeo && sort === "distance_asc" && !address && !city && !district && !ward;
+
+    if (isNearMe) {
+      // Khi bấm "Gần tôi": Lấy TẤT CẢ workshop phù hợp với các bộ lọc khác (status, category, search, price, date)
+      // Tính khoảng cách chính xác bằng công thức Haversine trên JS và sắp xếp gần -> xa (không giới hạn radius)
+      const allWorkshops = await Workshop.find(filter)
+        .populate("host", "displayName avatarUrl username");
+
+      const R = 6371e3; // metres
+      const φ1 = (latitude * Math.PI) / 180;
+
+      const workshopsWithDistance = allWorkshops.map((doc) => {
+        const w = doc.toObject ? doc.toObject() : doc;
+        const coords = w.location?.coordinates?.coordinates;
+        if (Array.isArray(coords) && coords.length === 2) {
+          const [wLng, wLat] = coords;
+          if (Number.isFinite(wLng) && Number.isFinite(wLat)) {
+            const φ2 = (wLat * Math.PI) / 180;
+            const Δφ = ((wLat - latitude) * Math.PI) / 180;
+            const Δλ = ((wLng - longitude) * Math.PI) / 180;
+            const a =
+              Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            w.distanceMeters = Math.round(R * c);
+          }
         }
+        return w;
+      });
+
+      // Sắp xếp TẤT CẢ workshop theo khoảng cách từ gần đến xa
+      // Những workshop có tọa độ sẽ lên trước theo thứ tự tăng dần khoảng cách, còn lại ở cuối
+      workshopsWithDistance.sort((a, b) => {
+        const distA = a.distanceMeters !== undefined ? a.distanceMeters : Infinity;
+        const distB = b.distanceMeters !== undefined ? b.distanceMeters : Infinity;
+        return distA - distB;
+      });
+
+      const total = workshopsWithDistance.length;
+      const startIndex = (currentPage - 1) * pageSize;
+      const paginated = workshopsWithDistance.slice(startIndex, startIndex + pageSize);
+
+      return res.status(200).json({
+        workshops: paginated,
+        total,
+        page: currentPage,
+        totalPages: Math.ceil(total / pageSize),
+      });
+    }
+
+    // Xử lý tìm kiếm theo khu vực (có tọa độ hoặc theo tên địa chỉ)
+    if (hasGeo) {
+      const areaDistance = Number(radius ?? 35000);
+      const geoFilter = {
+        "location.coordinates": {
+          $geoWithin: {
+            $centerSphere: [[longitude, latitude], areaDistance / 6378100],
+          },
+        },
       };
+
+      const locationConditions = [geoFilter];
+      if (address) {
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(address), $options: "i" } });
+        const parts = address.split(/[,–-]/).map((s) => s.trim()).filter(Boolean);
+        parts.forEach((part) => {
+          if (part.length > 2) {
+            locationConditions.push({ "location.address": { $regex: escapeRegExp(part), $options: "i" } });
+            locationConditions.push({ "location.city": { $regex: escapeRegExp(part), $options: "i" } });
+            locationConditions.push({ "location.district": { $regex: escapeRegExp(part), $options: "i" } });
+          }
+        });
+      }
+      if (city) {
+        locationConditions.push({ "location.city": { $regex: escapeRegExp(city), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(city), $options: "i" } });
+      }
+      if (district) {
+        locationConditions.push({ "location.district": { $regex: escapeRegExp(district), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(district), $options: "i" } });
+      }
+      if (ward) {
+        locationConditions.push({ "location.ward": { $regex: escapeRegExp(ward), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(ward), $options: "i" } });
+      }
+
+      if (!filter.$or) {
+        filter.$or = locationConditions;
+      } else {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existingOr }, { $or: locationConditions }];
+      }
+    } else if (address || city || district || ward) {
+      // Text location filtering khi không có tọa độ
+      const locationConditions = [];
+      if (address) {
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(address), $options: "i" } });
+        const parts = address.split(/[,–-]/).map((s) => s.trim()).filter(Boolean);
+        parts.forEach((part) => {
+          if (part.length > 2) {
+            locationConditions.push({ "location.address": { $regex: escapeRegExp(part), $options: "i" } });
+            locationConditions.push({ "location.city": { $regex: escapeRegExp(part), $options: "i" } });
+            locationConditions.push({ "location.district": { $regex: escapeRegExp(part), $options: "i" } });
+          }
+        });
+      }
+      if (city) {
+        locationConditions.push({ "location.city": { $regex: escapeRegExp(city), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(city), $options: "i" } });
+      }
+      if (district) {
+        locationConditions.push({ "location.district": { $regex: escapeRegExp(district), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(district), $options: "i" } });
+      }
+      if (ward) {
+        locationConditions.push({ "location.ward": { $regex: escapeRegExp(ward), $options: "i" } });
+        locationConditions.push({ "location.address": { $regex: escapeRegExp(ward), $options: "i" } });
+      }
+
+      if (locationConditions.length > 0) {
+        if (!filter.$or) {
+          filter.$or = locationConditions;
+        } else {
+          const existingOr = filter.$or;
+          delete filter.$or;
+          filter.$and = [{ $or: existingOr }, { $or: locationConditions }];
+        }
+      }
     }
 
     // Sorting
@@ -1027,49 +1142,43 @@ export const getWorkshops = async (req, res) => {
       sortConfig = { price: -1 };
     } else if (sort === "rating_desc") {
       sortConfig = { averageRating: -1 };
-    } else if (sort === "distance_asc") {
-      sortConfig = undefined; // $near sorts automatically
     }
 
-    if (filter["location.coordinates"] && filter["location.coordinates"].$near) {
-      sortConfig = undefined; // MongoDB does not allow sort with $near
-    }
+    let workshops = [];
+    let total = 0;
 
-    const numericPage = Number(page);
-    const numericLimit = Number(limit);
-    const currentPage = Number.isInteger(numericPage) && numericPage > 0 ? numericPage : 1;
-    const pageSize = Number.isInteger(numericLimit) && numericLimit > 0 ? Math.min(numericLimit, 50) : 12;
-
-    const [workshops, total] = await Promise.all([
-      Workshop.find(filter)
-        .populate("host", "displayName avatarUrl username")
-        .sort(sortConfig)
-        .skip((currentPage - 1) * pageSize)
-        .limit(pageSize),
-      Workshop.countDocuments(filter),
-    ]);
-
-    // Convert to plain objects
-    let resultWorkshops = workshops.map(w => w.toObject());
-
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      resultWorkshops = resultWorkshops.map(w => {
-        if (w.location && w.location.coordinates && w.location.coordinates.coordinates) {
-          const [wLng, wLat] = w.location.coordinates.coordinates;
-          const R = 6371e3; // metres
-          const φ1 = latitude * Math.PI/180;
-          const φ2 = wLat * Math.PI/180;
-          const Δφ = (wLat-latitude) * Math.PI/180;
-          const Δλ = (wLng-longitude) * Math.PI/180;
-          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                    Math.cos(φ1) * Math.cos(φ2) *
-                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          w.distanceMeters = Math.round(R * c);
+    try {
+      [workshops, total] = await Promise.all([
+        Workshop.find(filter)
+          .populate("host", "displayName avatarUrl username")
+          .sort(sortConfig)
+          .skip((currentPage - 1) * pageSize)
+          .limit(pageSize),
+        Workshop.countDocuments(filter),
+      ]);
+    } catch (queryErr) {
+      console.warn("Lỗi truy vấn với filter geo, thử fallback sang text:", queryErr.message);
+      const fallbackFilter = { ...filter };
+      if (fallbackFilter.$or) {
+        fallbackFilter.$or = fallbackFilter.$or.filter(
+          (cond) => !cond["location.coordinates"]
+        );
+        if (fallbackFilter.$or.length === 0) {
+          delete fallbackFilter.$or;
         }
-        return w;
-      });
+      }
+      [workshops, total] = await Promise.all([
+        Workshop.find(fallbackFilter)
+          .populate("host", "displayName avatarUrl username")
+          .sort(sortConfig)
+          .skip((currentPage - 1) * pageSize)
+          .limit(pageSize),
+        Workshop.countDocuments(fallbackFilter),
+      ]);
     }
+
+    // Convert to plain objects (không gắn distanceMeters khi tìm kiếm theo khu vực)
+    const resultWorkshops = workshops.map((w) => (w.toObject ? w.toObject() : w));
 
     return res.status(200).json({
       workshops: resultWorkshops,

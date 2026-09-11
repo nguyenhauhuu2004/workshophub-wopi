@@ -12,6 +12,7 @@ import hostRoutes from "./routes/hostRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import promotionRoutes from "./routes/promotionRoutes.js";
 import paymentRoutes, { webhookRouter } from "./routes/paymentRoutes.js";
+import aiRoute from "./routes/aiRoute.js";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ cloudinary.config({
 app.use("/api/auth", authRoute);
 app.use("/api/workshops", workshopRoutes);
 app.use("/api/payments/webhook", webhookRouter);
+app.use("/api/ai", aiRoute);
 
 // private routes
 app.use(protectedRoute);

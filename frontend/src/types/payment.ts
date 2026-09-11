@@ -22,7 +22,7 @@ export type Payment = {
   amount: number;
   currency: string;
   status: PaymentStatus;
-  paymentMethod: "vietqr";
+  paymentMethod: "vietqr" | "pay_at_venue";
   paymentReference: string;
   bankAccount: BankAccountInfo;
   qrCode: string;

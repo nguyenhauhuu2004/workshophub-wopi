@@ -134,7 +134,7 @@ const isUpcomingBooking = (booking: Booking) => {
 const canShowCheckInTicket = (booking: Booking) => {
   return (
     (booking.status === "confirmed" || booking.status === "checked_in") &&
-    booking.paymentStatus === "paid"
+    (booking.paymentStatus === "paid" || booking.paymentMethod === "pay_at_venue")
   );
 };
 
@@ -336,13 +336,23 @@ export default function MyBookingsPage() {
                         {BOOKING_STATUS_LABELS[booking.status]}
                       </span>
 
-                      {booking.paymentStatus === "paid" ? (
+                      {booking.paymentMethod === "pay_at_venue" ? (
+                        booking.paymentStatus === "paid" ? (
+                          <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            Đã thanh toán tại workshop
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                            Thanh toán tại workshop
+                          </span>
+                        )
+                      ) : booking.paymentStatus === "paid" ? (
                         <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          Đã thanh toán
+                          Đã thanh toán QR
                         </span>
                       ) : booking.status === "pending_payment" || booking.paymentStatus === "pending" ? (
                         <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                          Chờ chuyển khoản
+                          Chờ chuyển khoản QR
                         </span>
                       ) : null}
                     </div>
@@ -382,11 +392,12 @@ export default function MyBookingsPage() {
 
                       <div>
                         <p className="text-xs text-muted-foreground">
-                          Số người
+                          Người tham dự
                         </p>
 
                         <p className="mt-1 font-medium">
-                          {booking.quantity} người
+                          {booking.attendeeName} ({booking.quantity} người)
+                          {booking.attendeePhone ? ` • ${booking.attendeePhone}` : ""}
                         </p>
                       </div>
                     </div>
@@ -427,24 +438,27 @@ export default function MyBookingsPage() {
                         </Link>
                       )}
 
-                      {booking.status === "pending_payment" && (
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => void handleCancelBooking(booking._id)}
-                          >
-                            Hủy đơn
-                          </Button>
+                      {(booking.status === "pending_payment" ||
+                        (booking.paymentMethod === "pay_at_venue" &&
+                          booking.status === "confirmed" &&
+                          booking.paymentStatus !== "paid")) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => void handleCancelBooking(booking._id)}
+                        >
+                          Hủy đơn
+                        </Button>
+                      )}
 
-                          <Link to={`/payment/${booking._id}`}>
-                            <Button className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-sm">
-                              <QrCode className="mr-2 size-4" />
-                              Thanh toán / Xem mã QR
-                            </Button>
-                          </Link>
-                        </>
+                      {booking.status === "pending_payment" && (
+                        <Link to={`/payment/${booking._id}`}>
+                          <Button className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-sm">
+                            <QrCode className="mr-2 size-4" />
+                            Thanh toán / Xem mã QR
+                          </Button>
+                        </Link>
                       )}
 
                       {canShowCheckInTicket(booking) && (
@@ -558,6 +572,27 @@ function CheckInTicketModal({ booking, onClose }: CheckInTicketModalProps) {
             <span className="text-muted-foreground">Số người</span>
 
             <span className="font-medium">{booking.quantity}</span>
+          </div>
+
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Người tham dự</span>
+
+            <span className="text-right font-medium">
+              {booking.attendeeName}
+              {booking.attendeePhone ? ` (${booking.attendeePhone})` : ""}
+            </span>
+          </div>
+
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Thanh toán</span>
+
+            <span className="text-right font-medium">
+              {booking.paymentMethod === "pay_at_venue"
+                ? booking.paymentStatus === "paid"
+                  ? "Đã thanh toán (tại workshop)"
+                  : "Thanh toán tại workshop"
+                : "Chuyển khoản QR"}
+            </span>
           </div>
         </div>
 

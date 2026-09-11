@@ -54,10 +54,13 @@ export const buildTicketConfirmationHtml = ({ booking, clientUrl }) => {
   const bookingCode = booking.bookingCode || "—";
   const attendeeName = booking.attendeeName || "Quý khách";
   const attendeeEmail = booking.attendeeEmail || "";
+  const attendeePhone = booking.attendeePhone || "";
   const quantity = booking.quantity || 1;
   const grossAmount = booking.grossAmount ?? 0;
   const paidAt = booking.paidAt || booking.updatedAt || new Date();
   const paidAtFormatted = formatDate(paidAt);
+
+  const isPayAtVenue = booking.paymentMethod === "pay_at_venue";
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=WOPY_CHECKIN:${bookingCode}`;
 
@@ -67,7 +70,7 @@ export const buildTicketConfirmationHtml = ({ booking, clientUrl }) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vé điện tử & Xác nhận đặt chỗ – WOPI</title>
+  <title>Vé điện tử &amp; Xác nhận đặt chỗ – WOPI</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f4f7;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a2e;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:32px 0;">
@@ -86,11 +89,18 @@ export const buildTicketConfirmationHtml = ({ booking, clientUrl }) => {
           <!-- Greeting -->
           <tr>
             <td style="padding:32px 40px 16px;">
-              <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">🎉 Thanh toán thành công – Vé của bạn đã sẵn sàng!</h2>
+              ${isPayAtVenue
+    ? `<h2 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">🎉 Đặt chỗ thành công – Vé của bạn đã sẵn sàng!</h2>
+              <p style="margin:0;font-size:15px;color:#64748b;line-height:1.6;">
+                Xin chào <strong>${attendeeName}</strong>, bạn đã đặt chỗ thành công.
+                Vui lòng <strong>thanh toán trực tiếp tại workshop</strong>. Dưới đây là thông tin vé điện tử và mã QR check-in của bạn.
+              </p>`
+    : `<h2 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">🎉 Thanh toán thành công – Vé của bạn đã sẵn sàng!</h2>
               <p style="margin:0;font-size:15px;color:#64748b;line-height:1.6;">
                 Xin chào <strong>${attendeeName}</strong>, cảm ơn bạn đã hoàn tất thanh toán.
                 Dưới đây là thông tin vé điện tử và chi tiết đơn đặt chỗ của bạn.
-              </p>
+              </p>`
+  }
             </td>
           </tr>
 
@@ -142,10 +152,25 @@ export const buildTicketConfirmationHtml = ({ booking, clientUrl }) => {
                   <td style="padding:4px 24px;color:#64748b;font-size:14px;">Người tham gia</td>
                   <td style="padding:4px 24px;font-size:14px;">${attendeeName}${attendeeEmail ? ` (${attendeeEmail})` : ""}</td>
                 </tr>
+                ${attendeePhone ? `
+                <tr>
+                  <td style="padding:4px 24px;color:#64748b;font-size:14px;">Số điện thoại</td>
+                  <td style="padding:4px 24px;font-size:14px;">${attendeePhone}</td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding:4px 24px;color:#64748b;font-size:14px;">Thanh toán</td>
+                  <td style="padding:4px 24px;font-size:14px;">
+                    ${isPayAtVenue
+    ? `<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid #fde68a;">💵 Thanh toán tại workshop</span>`
+    : `<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid #a7f3d0;">✅ Đã thanh toán QR</span>`
+  }
+                  </td>
+                </tr>
                 <tr><td colspan="2" style="padding:8px;"></td></tr>
               </table>
             </td>
           </tr>
+
 
           <!-- QR Check-in Card -->
           <tr>

@@ -52,6 +52,10 @@ const sortOptions: Array<{
     label: "Mới nhất",
   },
   {
+    value: "distance_asc",
+    label: "Gần bạn nhất",
+  },
+  {
     value: "upcoming",
     label: "Sắp diễn ra",
   },
@@ -189,6 +193,8 @@ export default function WorkshopsPage() {
     ? (rawSort as WorkshopSort)
     : "newest";
 
+  const isNearMeMode = Boolean(lat && lng && !addressName && sort === "distance_asc");
+
   const [searchInput, setSearchInput] = useState(searchValue);
 
   const [minPriceInput, setMinPriceInput] = useState(minPrice);
@@ -280,6 +286,7 @@ export default function WorkshopsPage() {
           minPrice: minPrice ? Number(minPrice) : undefined,
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
           minRating: minRating > 0 ? minRating : undefined,
+          address: addressName || undefined,
           lat,
           lng,
           dateFrom: dateFrom || undefined,
@@ -309,7 +316,11 @@ export default function WorkshopsPage() {
           return;
         }
 
-        console.error("Load workshops error:", requestError);
+        console.error(
+          "Load workshops error:",
+          requestError,
+          (requestError as any)?.response?.data,
+        );
 
         setError("Không thể tải danh sách workshop");
 
@@ -405,6 +416,16 @@ export default function WorkshopsPage() {
   };
 
   const handleNearMe = () => {
+    // Nếu đang bật "Gần tôi", bấm lại để tắt
+    if (isNearMeMode) {
+      updateSearchParams({
+        lat: null,
+        lng: null,
+        sort: "newest",
+      });
+      return;
+    }
+
     if (!navigator.geolocation) {
       toast.error("Trình duyệt không hỗ trợ định vị");
       return;
@@ -416,13 +437,14 @@ export default function WorkshopsPage() {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           address: null,
-          sort: "distance_asc"
+          sort: "distance_asc",
         });
       },
       (err) => {
         setLoading(false);
         toast.error("Không thể lấy vị trí: " + err.message);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
@@ -479,13 +501,26 @@ export default function WorkshopsPage() {
       });
     }
 
-    if (lat && lng) {
+    if (isNearMeMode) {
       filters.push({
-        key: "location",
-        label: addressName ? addressName : "Gần tôi",
+        key: "near_me",
+        label: "Gần tôi nhất",
         clear: () =>
           updateSearchParams({
-            address: null, lat: null, lng: null
+            lat: null,
+            lng: null,
+            sort: "newest",
+          }),
+      });
+    } else if (addressName || (lat && lng)) {
+      filters.push({
+        key: "location",
+        label: addressName || "Khu vực đã chọn",
+        clear: () =>
+          updateSearchParams({
+            address: null,
+            lat: null,
+            lng: null,
           }),
       });
     }
@@ -533,7 +568,7 @@ export default function WorkshopsPage() {
 
     return filters;
   }, [
-    addressName, lat, lng,
+    addressName, lat, lng, isNearMeMode,
     category,
     clearPriceFilter,
     dateFrom, dateTo,
@@ -560,7 +595,16 @@ export default function WorkshopsPage() {
 
     onLocationChange: (loc: StructuredLocation | null) => {
       if (loc) {
-        updateSearchParams({ lat: loc.lat, lng: loc.lng, address: loc.city || loc.district || loc.ward || "Vị trí đã chọn" });
+        const displayAddress =
+          loc.district && loc.city
+            ? `${loc.district}, ${loc.city}`
+            : loc.city || loc.district || loc.ward || loc.formattedAddress || "Vị trí đã chọn";
+        updateSearchParams({
+          lat: loc.lat,
+          lng: loc.lng,
+          address: displayAddress,
+          sort: sort === "distance_asc" ? "newest" : sort,
+        });
       } else {
         updateSearchParams({ lat: null, lng: null, address: null });
       }
@@ -635,7 +679,7 @@ export default function WorkshopsPage() {
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant={lat && lng ? "default" : "outline"}
+                  variant={isNearMeMode ? "default" : "outline"}
                   onClick={handleNearMe}
                   className="h-12 rounded-xl"
                 >
@@ -659,11 +703,31 @@ export default function WorkshopsPage() {
 
                 <select
                   value={sort}
-                  onChange={(event) =>
-                    updateSearchParams({
-                      sort: event.target.value,
-                    })
-                  }
+                  onChange={(event) => {
+                    const newSort = event.target.value as WorkshopSort;
+                    if (newSort === "distance_asc") {
+                      if (!lat || !lng) {
+                        handleNearMe();
+                      } else {
+                        updateSearchParams({
+                          sort: "distance_asc",
+                          address: null,
+                        });
+                      }
+                    } else {
+                      if (isNearMeMode) {
+                        updateSearchParams({
+                          sort: newSort,
+                          lat: null,
+                          lng: null,
+                        });
+                      } else {
+                        updateSearchParams({
+                          sort: newSort,
+                        });
+                      }
+                    }
+                  }}
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                   aria-label="Sắp xếp workshop"
                 >
@@ -727,7 +791,11 @@ export default function WorkshopsPage() {
                   <>
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                       {data.workshops.map((workshop) => (
-                        <WorkshopCard key={workshop._id} workshop={workshop} />
+                        <WorkshopCard
+                          key={workshop._id}
+                          workshop={workshop}
+                          showDistance={isNearMeMode}
+                        />
                       ))}
                     </div>
 

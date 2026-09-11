@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CalendarDays,
@@ -11,19 +11,29 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import AttendeeInfoForm, { type AttendeeInfo } from "@/components/AttendeeInfoForm";
+import PaymentMethodSelector from "@/components/PaymentMethodSelector";
 
-import type { BookingCardData, BookingSession } from "@/types/booking";
+import type { BookingCardData, BookingPaymentMethod, BookingSession } from "@/types/booking";
+
+export type FullBookingData = BookingCardData & {
+  paymentMethod: BookingPaymentMethod;
+  attendeeInfo: AttendeeInfo;
+  saveAttendeeAsDefault: boolean;
+};
 
 type BookingCardProps = {
   pricePerPerson: number;
   sessions: BookingSession[];
   location: string;
+  defaultAttendee?: { name: string; email: string; phone: string };
 
   taxRate?: number;
   disabled?: boolean;
   className?: string;
 
-  onBook: (data: BookingCardData) => Promise<void> | void;
+  onBook: (data: FullBookingData) => Promise<void> | void;
 };
 
 const formatCurrency = (amount: number) => {
@@ -65,6 +75,7 @@ const BookingCard = ({
   pricePerPerson,
   sessions,
   location,
+  defaultAttendee,
   taxRate = 0.08,
   disabled = false,
   className = "",
@@ -81,10 +92,16 @@ const BookingCard = ({
   );
 
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
-
   const [quantity, setQuantity] = useState(1);
-
   const [submitting, setSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("pay_at_venue");
+
+  const attendeeInfoRef = useRef<AttendeeInfo>({
+    name: defaultAttendee?.name ?? "",
+    email: defaultAttendee?.email ?? "",
+    phone: defaultAttendee?.phone ?? "",
+  });
+  const saveAsDefaultRef = useRef(false);
 
   const selectedSession = useMemo(
     () =>
@@ -114,17 +131,21 @@ const BookingCard = ({
     );
   }, [selectedSession]);
 
+  // Callback ổn định để AttendeeInfoForm không re-render liên tục
+  const handleAttendeeChange = useCallback(
+    (info: AttendeeInfo, save: boolean) => {
+      attendeeInfoRef.current = info;
+      saveAsDefaultRef.current = save;
+    },
+    [],
+  );
+
   const subtotal = pricePerPerson * quantity;
-
   const taxAmount = Math.round(subtotal * taxRate);
-
   const grossAmount = subtotal + taxAmount;
 
   const increaseQuantity = () => {
-    if (!selectedSession) {
-      return;
-    }
-
+    if (!selectedSession) return;
     setQuantity((current) => Math.min(current + 1, selectedSession.spotsLeft));
   };
 
@@ -143,12 +164,32 @@ const BookingCard = ({
       return;
     }
 
+    const info = attendeeInfoRef.current;
+
+    if (!info.name.trim()) {
+      toast.error("Vui lòng nhập họ tên người tham dự");
+      return;
+    }
+
+    if (!info.email.trim()) {
+      toast.error("Vui lòng nhập email người tham dự");
+      return;
+    }
+
+    if (!info.phone.trim()) {
+      toast.error("Vui lòng nhập số điện thoại người tham dự");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
       await onBook({
         session: selectedSession,
         quantity,
+        paymentMethod,
+        attendeeInfo: info,
+        saveAttendeeAsDefault: saveAsDefaultRef.current,
       });
     } finally {
       setSubmitting(false);
@@ -161,6 +202,7 @@ const BookingCard = ({
     <div
       className={`rounded-3xl border bg-background p-5 shadow-sm sm:p-6 ${className}`}
     >
+      {/* Giá */}
       <div>
         <p className="text-sm text-muted-foreground">Giá mỗi người</p>
 
@@ -169,6 +211,7 @@ const BookingCard = ({
         </p>
       </div>
 
+      {/* Chọn lịch */}
       <div className="mt-6">
         <div className="mb-3 flex items-center gap-2">
           <CalendarDays className="size-4 text-primary" />
@@ -177,7 +220,7 @@ const BookingCard = ({
         </div>
 
         {availableSessions.length > 0 ? (
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
             {availableSessions.map((session) => {
               const selected = session.id === selectedSessionId;
 
@@ -236,7 +279,8 @@ const BookingCard = ({
         )}
       </div>
 
-      <div className="mt-6">
+      {/* Số lượng */}
+      <div className="mt-5">
         <p className="text-sm font-semibold">Số lượng người</p>
 
         <div className="mt-3 flex items-center justify-between rounded-2xl border p-3">
@@ -272,7 +316,8 @@ const BookingCard = ({
         </div>
       </div>
 
-      <div className="mt-6 flex items-start gap-2 rounded-2xl bg-muted/50 p-4">
+      {/* Địa điểm */}
+      <div className="mt-5 flex items-start gap-2 rounded-2xl bg-muted/50 p-4">
         <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
 
         <div>
@@ -282,7 +327,27 @@ const BookingCard = ({
         </div>
       </div>
 
-      <div className="mt-6 space-y-3 border-t pt-5 text-sm">
+      {/* Divider */}
+      <div className="my-5 border-t" />
+
+      {/* Form thông tin người tham dự */}
+      <AttendeeInfoForm
+        defaultValues={defaultAttendee}
+        onChange={handleAttendeeChange}
+        disabled={isSubmitting}
+      />
+
+      <div className="my-5 border-t" />
+
+      {/* Chọn phương thức thanh toán */}
+      <PaymentMethodSelector
+        value={paymentMethod}
+        onChange={setPaymentMethod}
+        disabled={isSubmitting}
+      />
+
+      {/* Tổng tiền */}
+      <div className="mt-5 space-y-3 border-t pt-5 text-sm">
         <div className="flex items-center justify-between gap-4">
           <span className="text-muted-foreground">
             {formatCurrency(pricePerPerson)} × {quantity}
@@ -320,13 +385,17 @@ const BookingCard = ({
             <Loader2 className="mr-2 size-4 animate-spin" />
             Đang xử lý...
           </>
+        ) : paymentMethod === "qr" ? (
+          "Đặt chỗ & Thanh toán QR"
         ) : (
-          "Đặt chỗ & Thanh toán VietQR"
+          "Đặt chỗ & Nhận vé ngay"
         )}
       </Button>
 
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        Chuyển khoản an toàn và tiện lợi qua mã VietQR 24/7.
+        {paymentMethod === "qr"
+          ? "Chuyển khoản an toàn và tiện lợi qua mã VietQR 24/7."
+          : "Vé điện tử sẽ được gửi vào email của bạn ngay sau khi đặt."}
       </p>
     </div>
   );

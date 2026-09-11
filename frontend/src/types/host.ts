@@ -1,4 +1,8 @@
-import type { BookingPaymentStatus, BookingStatus } from "@/types/booking";
+import type {
+  BookingPaymentMethod,
+  BookingPaymentStatus,
+  BookingStatus,
+} from "@/types/booking";
 
 import type { WorkshopMedia, WorkshopStatus } from "@/types/workshop";
 
@@ -64,6 +68,8 @@ export type HostBookingRow = {
 
   attendeeName: string;
   attendeeEmail: string;
+  attendeePhone?: string;
+  paymentMethod?: BookingPaymentMethod;
 
   workshopTitle: string;
   sessionLabel: string;

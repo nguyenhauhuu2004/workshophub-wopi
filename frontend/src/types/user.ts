@@ -13,6 +13,13 @@ export interface User {
   status: UserStatus;
   role: UserRole;
   phone?: string;
+  /** Thông tin người tham dự mặc định — tự điền sẵn form đặt chỗ */
+  defaultAttendee?: {
+    name: string;
+    email: string;
+    phone: string;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
+
