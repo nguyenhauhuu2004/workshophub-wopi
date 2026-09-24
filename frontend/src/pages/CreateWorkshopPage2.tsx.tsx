@@ -15,6 +15,7 @@ import {
   Banknote,
   BookOpen,
   CalendarDays,
+  CalendarRange,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -27,15 +28,21 @@ import {
   Loader2,
   MapPin,
   Plus,
+  QrCode,
+  Repeat,
   Sparkles,
   Trash2,
   UploadCloud,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import LocationPicker from "@/components/LocationPicker";
+import RecurringScheduleModal, {
+  type GeneratedSchedule,
+} from "@/components/RecurringScheduleModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CATEGORIES } from "@/data";
@@ -58,8 +65,10 @@ type LocalMedia = {
 
 type WorkshopFormState = Omit<
   WorkshopFormData,
-  "thumbnail" | "gallery" | "video" | "schedules" | "location"
+  "thumbnail" | "gallery" | "video" | "schedules" | "location" | "maxPayAtVenue" | "maxQrPayment"
 > & {
+  maxPayAtVenue: string;
+  maxQrPayment: string;
   thumbnail: LocalMedia | null;
   gallery: LocalMedia[];
   video: LocalMedia | null;
@@ -160,6 +169,8 @@ const initialFormState: WorkshopFormState = {
   includes: [""],
   price: "",
   duration: "",
+  maxPayAtVenue: "",
+  maxQrPayment: "",
   thumbnail: null,
   gallery: [],
   video: null,
@@ -304,6 +315,23 @@ export function CreateWorkshopPage() {
       ...current,
       schedules: [...current.schedules, createSchedule()],
     }));
+  };
+
+  const addMultipleSchedules = (items: GeneratedSchedule[]) => {
+    const newSchedules: ScheduleFormItem[] = items.map((item) => ({
+      id: createId(),
+      startAt: item.startAt,
+      seatsTotal: item.seatsTotal,
+      spotsLeft: item.seatsTotal,
+    }));
+
+    setForm((current) => {
+      const existing = current.schedules.filter((s) => s.startAt.trim() !== "");
+      return {
+        ...current,
+        schedules: existing.length ? [...existing, ...newSchedules] : newSchedules,
+      };
+    });
   };
 
   const removeSchedule = (scheduleId: string) => {
@@ -531,6 +559,8 @@ export function CreateWorkshopPage() {
         includes: form.includes.map((item) => item.trim()).filter(Boolean),
         price: String(Number(form.price)),
         duration: form.duration.trim(),
+        maxPayAtVenue: form.maxPayAtVenue !== "" ? Number(form.maxPayAtVenue) : null,
+        maxQrPayment: form.maxQrPayment !== "" ? Number(form.maxQrPayment) : null,
         thumbnail: form.thumbnail.file,
         gallery: form.gallery.map((item) => item.file),
         video: form.video?.file ?? null,
@@ -786,6 +816,7 @@ export function CreateWorkshopPage() {
                       schedules={form.schedules}
                       updateSchedule={updateSchedule}
                       addSchedule={addSchedule}
+                      addMultipleSchedules={addMultipleSchedules}
                       removeSchedule={removeSchedule}
                     />
                   )}
@@ -1078,6 +1109,40 @@ function WorkshopDetailsStep({
             />
           </div>
         </FormField>
+
+        <FormField
+          label="Giới hạn thanh toán tại workshop"
+          description="Số người tối đa được chọn thanh toán tại chỗ (để trống nếu không giới hạn)."
+        >
+          <div className="relative">
+            <Wallet className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#849087]" />
+            <Input
+              type="number"
+              min={0}
+              value={form.maxPayAtVenue}
+              onChange={(event) => setField("maxPayAtVenue", event.target.value)}
+              placeholder="Không giới hạn"
+              className="h-12 rounded-xl border-[#dfe5dd] pl-10"
+            />
+          </div>
+        </FormField>
+
+        <FormField
+          label="Giới hạn chuyển khoản QR"
+          description="Số người tối đa được chọn chuyển khoản VietQR (để trống nếu không giới hạn)."
+        >
+          <div className="relative">
+            <QrCode className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#849087]" />
+            <Input
+              type="number"
+              min={0}
+              value={form.maxQrPayment}
+              onChange={(event) => setField("maxQrPayment", event.target.value)}
+              placeholder="Không giới hạn"
+              className="h-12 rounded-xl border-[#dfe5dd] pl-10"
+            />
+          </div>
+        </FormField>
       </div>
 
       <DynamicTextList
@@ -1101,6 +1166,7 @@ type ScheduleStepProps = {
     value: ScheduleFormItem[K],
   ) => void;
   addSchedule: () => void;
+  addMultipleSchedules: (schedules: GeneratedSchedule[]) => void;
   removeSchedule: (scheduleId: string) => void;
 };
 
@@ -1108,22 +1174,48 @@ function ScheduleStep({
   schedules,
   updateSchedule,
   addSchedule,
+  addMultipleSchedules,
   removeSchedule,
 }: ScheduleStepProps) {
   const today = getTodayInputValue();
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-[#f4f8f1] to-teal-50/50 p-4.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#315d43] text-white shadow-xs">
+            <Repeat className="size-5" />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-[#1e442f]">
+              Tạo lịch lặp lại theo thứ trong tuần
+            </p>
+            <p className="mt-0.5 text-xs text-[#5f7567]">
+              Chọn nhiều thứ hoặc tất cả (T2 - CN), chọn khung giờ và khoảng ngày để tự động sinh toàn bộ lịch.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowRecurringModal(true)}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#315d43] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#264b36] active:scale-[0.98]"
+        >
+          <CalendarRange className="size-4" />
+          Tạo lịch lặp lại
+        </button>
+      </div>
+
       <div className="rounded-2xl border border-[#dfe8dc] bg-[#f4f8f1] p-4">
         <div className="flex items-start gap-3">
           <CalendarDays className="mt-0.5 size-5 shrink-0 text-[#315d43]" />
           <div>
             <p className="text-sm font-bold text-[#284936]">
-              Có thể thêm nhiều buổi tổ chức
+              Danh sách các buổi tổ chức ({schedules.length} buổi)
             </p>
             <p className="mt-1 text-sm leading-6 text-[#718078]">
-              Mỗi lịch có thời gian bắt đầu, tổng số chỗ và số chỗ còn lại
-              riêng.
+              Mỗi lịch có thời gian bắt đầu, tổng số chỗ và số chỗ còn lại riêng.
             </p>
           </div>
         </div>
@@ -1238,14 +1330,36 @@ function ScheduleStep({
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={addSchedule}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cbd6cb] bg-[#fafbf8] px-4 py-4 text-sm font-bold text-[#42624f] transition hover:border-[#6f8c76] hover:bg-[#f1f6ee]"
-      >
-        <Plus className="size-4" />
-        Thêm lịch tổ chức
-      </button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={addSchedule}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cbd6cb] bg-[#fafbf8] px-4 py-4 text-sm font-bold text-[#42624f] transition hover:border-[#6f8c76] hover:bg-[#f1f6ee]"
+        >
+          <Plus className="size-4" />
+          Thêm 1 buổi lẻ
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowRecurringModal(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 px-4 py-4 text-sm font-bold text-[#2e593f] transition hover:border-emerald-500 hover:bg-emerald-50"
+        >
+          <Repeat className="size-4" />
+          Tạo lịch lặp lại theo thứ
+        </button>
+      </div>
+
+      <RecurringScheduleModal
+        isOpen={showRecurringModal}
+        onClose={() => setShowRecurringModal(false)}
+        onApply={(generated) => {
+          addMultipleSchedules(generated);
+          setShowRecurringModal(false);
+          toast.success(`Đã thêm ${generated.length} buổi tổ chức vào danh sách`);
+        }}
+        title="Thiết lập lịch lặp lại theo thứ"
+      />
     </div>
   );
 }

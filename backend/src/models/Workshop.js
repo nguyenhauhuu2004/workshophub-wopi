@@ -186,6 +186,50 @@ const workshopSchema = new mongoose.Schema(
       required: true,
     },
 
+    /*
+     * Số lượng người tối đa được phép đặt thanh toán tại workshop.
+     * null = không giới hạn (mặc định).
+     */
+    maxPayAtVenue: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+
+    /*
+     * Số lượng người tối đa được phép đặt chuyển khoản QR.
+     * null = không giới hạn (mặc định).
+     */
+    maxQrPayment: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+
+    /*
+     * Giảm giá trực tiếp (hiển thị trên card & tự động áp dụng khi đặt chỗ)
+     */
+    directDiscount: {
+      type: {
+        type: String,
+        enum: ["percentage", "fixed"],
+        default: null,
+      },
+      value: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      expiresAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
     status: {
       type: String,
       enum: ["draft", "published", "cancelled", "archived"],

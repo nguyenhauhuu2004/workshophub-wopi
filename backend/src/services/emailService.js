@@ -13,6 +13,7 @@ import User from "../models/User.js";
 import { buildPaymentInstructionsHtml } from "../templates/bookingConfirmationTemplate.js";
 import { buildTicketConfirmationHtml } from "../templates/ticketConfirmationTemplate.js";
 import { buildHostNewBookingHtml } from "../templates/hostNewBookingTemplate.js";
+import { buildWorkshopDiscoveryHtml } from "../templates/workshopDiscoveryTemplate.js";
 
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -250,3 +251,41 @@ export const sendPayAtVenueConfirmationEmail = async (populatedBooking) => {
   }
 };
 
+/* ─────────────────────────────────────────────
+ * 5. Email khám phá workshop gần người dùng
+ *    Gọi định kỳ để thông báo workshop đang mở
+ * ───────────────────────────────────────────── */
+
+/**
+ * @param {string} recipientEmail – Email người nhận
+ * @param {Array}  workshops      – Danh sách workshop đang mở
+ */
+export const sendWorkshopDiscoveryEmail = async (recipientEmail, workshops) => {
+  const resend = getResendClient();
+
+  if (!resend) return;
+
+  if (!recipientEmail || !workshops?.length) {
+    return;
+  }
+
+  const html = buildWorkshopDiscoveryHtml({
+    workshops,
+    clientUrl: getClientUrl(),
+  });
+
+  const count = workshops.length;
+
+  const { error } = await resend.emails.send({
+    from: getFromEmail(),
+    to: [resolveRecipient(recipientEmail)],
+    subject: `🎨 ${count} workshop đang mở gần bạn — Khám phá ngay! | WOPI`,
+    html,
+  });
+
+  if (error) {
+    console.error("[EMAIL] Gửi email khám phá workshop thất bại:", error);
+  } else {
+    console.log(`[EMAIL] Đã gửi email khám phá workshop tới ${recipientEmail}`);
+  }
+};

@@ -46,8 +46,8 @@ function App() {
               <Route path="/workshops" element={<WorkshopsPage />} />
               <Route path="/workshops/:id" element={<WorkshopDetail />} />
 
-              {/* User Protected routes */}
-              <Route element={<ProtectedRoute />}>
+              {/* User Protected routes (Dành riêng cho người dùng, chặn Host) */}
+              <Route element={<ProtectedRoute allowedRoles={["user", "admin"]} />}>
                 <Route path="/my-bookings" element={<MyBookingsPage />} />
                 <Route path="/payment/:bookingId" element={<PaymentPage />} />
               </Route>

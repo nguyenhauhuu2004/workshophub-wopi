@@ -235,14 +235,24 @@ const Header = ({
             {/* Logged in User Menu OR Auth Buttons */}
             {user ? (
               <div className="flex items-center gap-2">
-                {/* My bookings quick icon */}
-                <Link
-                  to="/my-bookings"
-                  className="hidden sm:inline-flex items-center justify-center size-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-                  title="Đơn đặt chỗ của tôi"
-                >
-                  <TicketCheck className="size-4" />
-                </Link>
+                {/* Quick icon: Host Dashboard for hosts, My bookings for regular users */}
+                {user.role === "host" ? (
+                  <Link
+                    to="/host"
+                    className="hidden sm:inline-flex items-center justify-center size-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                    title="Bảng điều khiển Host"
+                  >
+                    <LayoutDashboard className="size-4" />
+                  </Link>
+                ) : (
+                  <Link
+                    to="/my-bookings"
+                    className="hidden sm:inline-flex items-center justify-center size-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                    title="Đơn đặt chỗ của tôi"
+                  >
+                    <TicketCheck className="size-4" />
+                  </Link>
+                )}
 
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -298,13 +308,15 @@ const Header = ({
                         Tài khoản & Hồ sơ
                       </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        onClick={() => navigate("/my-bookings")}
-                        className="rounded-xl px-3 py-2 text-xs font-medium cursor-pointer hover:bg-muted"
-                      >
-                        <TicketCheck className="mr-2 size-4 text-muted-foreground" />
-                        Vé & Lịch đã đặt
-                      </DropdownMenuItem>
+                      {user.role !== "host" && (
+                        <DropdownMenuItem
+                          onClick={() => navigate("/my-bookings")}
+                          className="rounded-xl px-3 py-2 text-xs font-medium cursor-pointer hover:bg-muted"
+                        >
+                          <TicketCheck className="mr-2 size-4 text-muted-foreground" />
+                          Vé & Lịch đã đặt
+                        </DropdownMenuItem>
+                      )}
 
                       {user.role === "host" && (
                         <>
@@ -452,7 +464,22 @@ const Header = ({
                   );
                 })}
 
-                {user && (
+                {user && user.role === "host" ? (
+                  <Link
+                    to="/host"
+                    className={cn(
+                      "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-colors",
+                      location.pathname === "/host"
+                        ? "bg-accent/10 text-[hsl(25,100%,50%)]"
+                        : "text-foreground hover:bg-muted/60",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <LayoutDashboard className="size-4 text-[hsl(25,100%,50%)]" />
+                      Bảng điều khiển Host
+                    </span>
+                  </Link>
+                ) : user ? (
                   <Link
                     to="/my-bookings"
                     className={cn(
@@ -467,7 +494,7 @@ const Header = ({
                       Vé & Đơn đặt chỗ
                     </span>
                   </Link>
-                )}
+                ) : null}
               </nav>
 
               {/* Quick Categories */}

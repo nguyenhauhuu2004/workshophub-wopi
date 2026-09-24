@@ -3,12 +3,14 @@ import mongoose from "mongoose";
 
 import Booking from "../models/Booking.js";
 import Workshop from "../models/Workshop.js";
+import Discount from "../models/Discount.js";
 import {
   sendHostNewBookingNotification,
   sendPayAtVenueConfirmationEmail,
 } from "../services/emailService.js";
 
-const TAX_RATE = 0.08;
+// Bỏ thuế VAT cho người dùng theo yêu cầu
+const TAX_RATE = 0;
 const PLATFORM_FEE_RATE = 0.05;
 
 const createBookingCode = () => {
@@ -57,11 +59,18 @@ export const createBooking = async (req, res) => {
       });
     }
 
+    if (req.user?.role === "host") {
+      return res.status(403).json({
+        message: "Tài khoản Host không thể đặt vé tham gia workshop",
+      });
+    }
+
     const {
       workshopId,
       sessionId,
       quantity,
       paymentMethod = "qr",
+      discountCode,
       attendeeName: bodyAttendeeName,
       attendeeEmail: bodyAttendeeEmail,
       attendeePhone: bodyAttendeePhone,
@@ -76,14 +85,7 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    if (paymentMethod === "qr") {
-      return res.status(400).json({
-        message:
-          "Phương thức thanh toán qua mã QR hiện đang tạm ngưng. Vui lòng chọn thanh toán tại workshop.",
-      });
-    }
-
-    if (!["pay_at_venue"].includes(paymentMethod)) {
+    if (!["qr", "pay_at_venue"].includes(paymentMethod)) {
       return res.status(400).json({
         message: "Phương thức thanh toán không hợp lệ",
       });
@@ -104,7 +106,7 @@ export const createBooking = async (req, res) => {
     const existingWorkshop = await Workshop.findOne({
       _id: workshopId,
       status: "published",
-    }).select("host price schedules");
+    }).select("host price schedules maxPayAtVenue maxQrPayment directDiscount");
 
     if (!existingWorkshop) {
       return res.status(404).json({
@@ -124,6 +126,35 @@ export const createBooking = async (req, res) => {
       return res.status(404).json({
         message: "Không tìm thấy lịch workshop",
       });
+    }
+
+    /*
+     * Kiểm tra giới hạn số lượng theo phương thức thanh toán.
+     */
+    if (paymentMethod === "pay_at_venue" && existingWorkshop.maxPayAtVenue != null) {
+      const payAtVenueCount = await Booking.countDocuments({
+        workshop: workshopId,
+        paymentMethod: "pay_at_venue",
+        status: { $nin: ["cancelled", "refunded"] },
+      });
+      if (payAtVenueCount + normalizedQuantity > existingWorkshop.maxPayAtVenue) {
+        return res.status(409).json({
+          message: `Workshop chỉ cho phép tối đa ${existingWorkshop.maxPayAtVenue} người thanh toán tại workshop. Hiện đã có ${payAtVenueCount} người.`,
+        });
+      }
+    }
+
+    if (paymentMethod === "qr" && existingWorkshop.maxQrPayment != null) {
+      const qrCount = await Booking.countDocuments({
+        workshop: workshopId,
+        paymentMethod: "qr",
+        status: { $nin: ["cancelled", "refunded"] },
+      });
+      if (qrCount + normalizedQuantity > existingWorkshop.maxQrPayment) {
+        return res.status(409).json({
+          message: `Workshop chỉ cho phép tối đa ${existingWorkshop.maxQrPayment} người chuyển khoản QR. Hiện đã có ${qrCount} người.`,
+        });
+      }
     }
 
     if (normalizedQuantity > existingSchedule.spotsLeft) {
@@ -223,19 +254,55 @@ export const createBooking = async (req, res) => {
         throw createHttpError(404, "Không tìm thấy lịch workshop");
       }
 
-      const unitPrice = Number(updatedWorkshop.price);
+      const originalUnitPrice = Number(updatedWorkshop.price);
 
-      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      if (!Number.isFinite(originalUnitPrice) || originalUnitPrice < 0) {
         throw createHttpError(400, "Giá workshop không hợp lệ");
+      }
+
+      // Tự động áp dụng giảm giá trực tiếp nếu workshop có cấu hình
+      let unitPrice = originalUnitPrice;
+      if (updatedWorkshop.directDiscount && updatedWorkshop.directDiscount.isActive) {
+        const { type, value, expiresAt } = updatedWorkshop.directDiscount;
+        if (!expiresAt || new Date(expiresAt).getTime() > Date.now()) {
+          if (type === "percentage") {
+            unitPrice = Math.max(0, Math.round(originalUnitPrice * (1 - value / 100)));
+          } else if (type === "fixed") {
+            unitPrice = Math.max(0, originalUnitPrice - value);
+          }
+        }
       }
 
       const subtotal = unitPrice * normalizedQuantity;
 
-      const taxAmount = Math.round(subtotal * TAX_RATE);
+      // Đã bỏ thuế VAT cho người dùng theo yêu cầu
+      const taxAmount = 0;
 
-      const discountAmount = 0;
+      let discountAmount = 0;
+      if (discountCode) {
+        const normalizedCode = String(discountCode).trim().toUpperCase();
+        const now = new Date();
+        const discount = await Discount.findOne({
+          workshop: workshopId,
+          code: normalizedCode,
+          isActive: true,
+          $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+        }).session(mongoSession);
 
-      const grossAmount = subtotal - discountAmount + taxAmount;
+        if (discount) {
+          if (discount.maxUsage == null || discount.usedCount < discount.maxUsage) {
+            if (discount.type === "percentage") {
+              discountAmount = Math.round((subtotal * discount.value) / 100);
+            } else {
+              discountAmount = Math.min(discount.value, subtotal);
+            }
+            discount.usedCount += 1;
+            await discount.save({ session: mongoSession });
+          }
+        }
+      }
+
+      const grossAmount = Math.max(0, subtotal - discountAmount);
 
       /*
        * Phí nền tảng tính trên tiền workshop,
@@ -243,7 +310,7 @@ export const createBooking = async (req, res) => {
        */
       const platformFee = Math.round(subtotal * PLATFORM_FEE_RATE);
 
-      const hostNetAmount = subtotal - discountAmount - platformFee;
+      const hostNetAmount = Math.max(0, subtotal - discountAmount - platformFee);
 
       /*
        * "pay_at_venue": xác nhận ngay, không qua payment flow.
@@ -460,6 +527,12 @@ export const getMyBookings = async (req, res) => {
     if (!userId) {
       return res.status(401).json({
         message: "Bạn chưa đăng nhập",
+      });
+    }
+
+    if (req.user?.role === "host") {
+      return res.status(403).json({
+        message: "Tài khoản Host quản lý đơn tại Bảng điều khiển Host",
       });
     }
 

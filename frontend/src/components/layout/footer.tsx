@@ -7,9 +7,10 @@ import {
   MapPin,
   PhoneCall,
 } from "lucide-react";
-
+import { useAuthStore } from "@/stores/useAuthStore";
 
 export default function Footer() {
+  const { user } = useAuthStore();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -156,14 +157,16 @@ export default function Footer() {
                   Tất cả Workshop
                 </Link>
               </li>
-              <li>
-                <Link
-                  to="/my-bookings"
-                  className="hover:text-[#FF6B00] transition-colors"
-                >
-                  Lịch & Vé đã đặt
-                </Link>
-              </li>
+              {user?.role !== "host" && (
+                <li>
+                  <Link
+                    to="/my-bookings"
+                    className="hover:text-[#FF6B00] transition-colors"
+                  >
+                    Lịch & Vé đã đặt
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link
                   to="/workshops/create"

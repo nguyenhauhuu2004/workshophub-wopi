@@ -54,7 +54,7 @@ import type { Workshop, WorkshopSchedule } from "@/types/workshop";
    CONSTANTS
    ═══════════════════════════════════════════════════ */
 
-const categoryIcons = ["🏺", "🎨", "🧶", "🕯️", "👜", "🖌️", "🪵", "🧵"];
+const categoryIcons = ["🏺", "🎨", "🍳", "🧁", "🎵", "💐", "🪵", "🎭", "✂️", "🧶", "🕯️", "🧵", "👜", "📸", "🍸", "🧘", "📦"];
 const cardRotations = [-2, 1.5, -1, 2.5, -1.5, 2, -2.5, 1];
 
 /* ═══════════════════════════════════════════════════
@@ -187,7 +187,7 @@ export default function HomePage() {
   }, []);
 
   const featured = useMemo(() => workshops, [workshops]);
-  const latest = useMemo(() => workshops.slice(4, 9), [workshops]);
+  const latest = useMemo(() => [...workshops].slice(0, 8), [workshops]);
   const upcoming = useMemo(
     () => [...workshops]
       .filter((w) => getScheduleDate(w))

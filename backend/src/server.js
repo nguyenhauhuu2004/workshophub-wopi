@@ -11,8 +11,10 @@ import workshopRoutes from "./routes/workshopRoutes.js";
 import hostRoutes from "./routes/hostRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import promotionRoutes from "./routes/promotionRoutes.js";
+import discountRoutes from "./routes/discountRoutes.js";
 import paymentRoutes, { webhookRouter } from "./routes/paymentRoutes.js";
 import aiRoute from "./routes/aiRoute.js";
+import { startNotificationScheduler } from "./services/notificationScheduler.js";
 
 dotenv.config();
 
@@ -44,8 +46,10 @@ app.use("/api/host", hostRoutes);
 
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/promotions", promotionRoutes);
+app.use("/api/discounts", discountRoutes);
 app.use("/api/payments", paymentRoutes);
 connectDB().then(() => {
+  startNotificationScheduler();
   app.listen(PORT, () => {
     console.log(`server bắt đầu trên cổng ${PORT}`);
   });

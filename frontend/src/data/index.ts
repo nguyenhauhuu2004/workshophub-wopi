@@ -321,17 +321,23 @@ export const WORKSHOPS: Workshop[] = [
 ];
 
 export const CATEGORIES = [
-  { name: "Pottery", grad: "from-amber-400 to-orange-500", glow: "shadow-orange-200" },
-  { name: "Photography", grad: "from-purple-600 to-indigo-700", glow: "shadow-purple-200" },
-  { name: "Cooking", grad: "from-red-400 to-orange-500", glow: "shadow-red-200" },
-  { name: "Baking", grad: "from-amber-300 to-yellow-500", glow: "shadow-yellow-200" },
-  { name: "Music", grad: "from-violet-500 to-purple-600", glow: "shadow-violet-200" },
-  { name: "Floral", grad: "from-rose-400 to-pink-500", glow: "shadow-pink-200" },
-  { name: "Woodwork", grad: "from-amber-700 to-amber-500", glow: "shadow-amber-200" },
-  { name: "Art", grad: "from-cyan-400 to-blue-500", glow: "shadow-cyan-200" },
-  { name: "DIY", grad: "from-emerald-400 to-teal-500", glow: "shadow-emerald-200" },
+  { name: "Làm gốm", grad: "from-amber-400 to-orange-500", glow: "shadow-orange-200" },
+  { name: "Vẽ tranh", grad: "from-purple-600 to-indigo-700", glow: "shadow-purple-200" },
+  { name: "Nấu ăn", grad: "from-red-400 to-orange-500", glow: "shadow-red-200" },
+  { name: "Làm bánh", grad: "from-amber-300 to-yellow-500", glow: "shadow-yellow-200" },
+  { name: "Âm nhạc", grad: "from-violet-500 to-purple-600", glow: "shadow-violet-200" },
+  { name: "Cắm hoa", grad: "from-rose-400 to-pink-500", glow: "shadow-pink-200" },
+  { name: "Làm mộc", grad: "from-amber-700 to-amber-500", glow: "shadow-amber-200" },
+  { name: "Nghệ thuật", grad: "from-cyan-400 to-blue-500", glow: "shadow-cyan-200" },
+  { name: "Thủ công DIY", grad: "from-emerald-400 to-teal-500", glow: "shadow-emerald-200" },
   { name: "Handmade", grad: "from-fuchsia-400 to-rose-500", glow: "shadow-fuchsia-200" },
-  { name: "Book Arts", grad: "from-sky-400 to-blue-600", glow: "shadow-sky-200" },
+  { name: "Làm nến thơm", grad: "from-yellow-400 to-amber-500", glow: "shadow-yellow-200" },
+  { name: "Đan len & Thêu", grad: "from-pink-400 to-rose-500", glow: "shadow-pink-200" },
+  { name: "Làm đồ da", grad: "from-orange-700 to-amber-600", glow: "shadow-orange-200" },
+  { name: "Nhiếp ảnh", grad: "from-slate-600 to-gray-700", glow: "shadow-gray-200" },
+  { name: "Pha chế", grad: "from-teal-400 to-cyan-500", glow: "shadow-teal-200" },
+  { name: "Yoga & Thiền", grad: "from-green-400 to-emerald-500", glow: "shadow-green-200" },
+  { name: "Khác", grad: "from-gray-400 to-gray-500", glow: "shadow-gray-200" },
 ];
 
 export const HOST_WORKSHOPS: HostWorkshop[] = WORKSHOPS.slice(0, 3).map((w, i) => ({

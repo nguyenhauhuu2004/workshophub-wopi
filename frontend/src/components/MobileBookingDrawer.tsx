@@ -7,7 +7,9 @@ import BookingCard, { type FullBookingData } from "@/components/BookingCard";
 import type { BookingSession } from "@/types/booking";
 
 type MobileBookingDrawerProps = {
+  workshopId?: string;
   pricePerPerson: number;
+  originalPrice?: number;
   sessions: BookingSession[];
   location: string;
   defaultAttendee?: { name: string; email: string; phone: string };
@@ -23,7 +25,9 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function MobileBookingDrawer({
+  workshopId,
   pricePerPerson,
+  originalPrice,
   sessions,
   location,
   defaultAttendee,
@@ -59,8 +63,19 @@ export default function MobileBookingDrawer({
       <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border/80 bg-background/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-md pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Giá mỗi người</p>
-            <p className="truncate text-xl font-bold text-primary">
+            {originalPrice && originalPrice > pricePerPerson ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground line-through">
+                  {formatCurrency(originalPrice)}
+                </span>
+                <span className="rounded bg-red-100 px-1 py-0.2 text-[10px] font-bold text-red-600 dark:bg-red-950 dark:text-red-400">
+                  GIẢM GIÁ
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Giá mỗi người</p>
+            )}
+            <p className={`truncate text-xl font-bold ${originalPrice && originalPrice > pricePerPerson ? "text-red-600 dark:text-red-400" : "text-primary"}`}>
               {formatCurrency(pricePerPerson)}
             </p>
           </div>
@@ -125,11 +140,12 @@ export default function MobileBookingDrawer({
               {/* Nội dung form đặt chỗ có thể cuộn */}
               <div className="overflow-y-auto px-4 py-4 sm:px-6">
                 <BookingCard
+                  workshopId={workshopId}
                   pricePerPerson={pricePerPerson}
                   sessions={sessions}
                   location={location}
                   defaultAttendee={defaultAttendee}
-                  taxRate={0.08}
+                  taxRate={0}
                   disabled={disabled}
                   onBook={handleBookAndClose}
                   className="border-0 bg-transparent p-0 shadow-none sm:p-0"

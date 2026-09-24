@@ -118,6 +118,7 @@ export type CreateBookingData = {
   sessionId: string;
   quantity: number;
   paymentMethod?: BookingPaymentMethod;
+  discountCode?: string;
   attendeeName?: string;
   attendeeEmail?: string;
   attendeePhone?: string;

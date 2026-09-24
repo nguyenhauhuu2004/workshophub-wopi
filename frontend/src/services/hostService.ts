@@ -1,6 +1,11 @@
 import api from "@/lib/axios";
 
 import type {
+  CreateDiscountData,
+  DiscountRow,
+} from "@/types/discount";
+
+import type {
   CreatePromotionCampaignData,
   CreatePromotionCampaignResponse,
   HostBookingRow,
@@ -56,6 +61,45 @@ export const hostService = {
     const response = await api.post<CreatePromotionCampaignResponse>(
       "/promotions/campaigns",
       data,
+    );
+
+    return response.data;
+  },
+
+  getDiscounts: async (): Promise<DiscountRow[]> => {
+    const response = await api.get<{
+      discounts: DiscountRow[];
+    }>("/discounts");
+
+    return response.data.discounts;
+  },
+
+  createDiscount: async (
+    data: CreateDiscountData,
+  ): Promise<{ message: string; discount: DiscountRow }> => {
+    const response = await api.post<{
+      message: string;
+      discount: DiscountRow;
+    }>("/discounts", data);
+
+    return response.data;
+  },
+
+  toggleDiscount: async (
+    discountId: string,
+  ): Promise<{ message: string }> => {
+    const response = await api.patch<{ message: string }>(
+      `/discounts/${discountId}/toggle`,
+    );
+
+    return response.data;
+  },
+
+  deleteDiscount: async (
+    discountId: string,
+  ): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(
+      `/discounts/${discountId}`,
     );
 
     return response.data;

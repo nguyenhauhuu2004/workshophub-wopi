@@ -15,6 +15,7 @@ import type {
   WorkshopStatus,
   UpdateWorkshopPayload,
   CreateWorkshopSchedulePayload,
+  BulkCreateWorkshopSchedulePayload,
 } from "@/types/workshop";
 
 import type {
@@ -77,6 +78,14 @@ const buildWorkshopFormData = (data: WorkshopFormData): FormData => {
   formData.append("location", JSON.stringify(data.location));
   formData.append("status", data.status ?? "published");
 
+  if (data.maxPayAtVenue != null) {
+    formData.append("maxPayAtVenue", String(data.maxPayAtVenue));
+  }
+
+  if (data.maxQrPayment != null) {
+    formData.append("maxQrPayment", String(data.maxQrPayment));
+  }
+
   if (data.thumbnail) {
     formData.append("thumbnail", data.thumbnail);
   }
@@ -104,7 +113,9 @@ export const workshopService = {
 
   addWorkshopSchedule: async (
     workshopId: string,
-    payload: CreateWorkshopSchedulePayload,
+    payload:
+      | CreateWorkshopSchedulePayload
+      | BulkCreateWorkshopSchedulePayload,
   ): Promise<Workshop> => {
     const response = await api.post(
       `/workshops/${workshopId}/schedules`,

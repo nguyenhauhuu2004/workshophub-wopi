@@ -39,7 +39,10 @@ const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/signin" replace />;
   }
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />; // Hoặc trang /unauthorized
+    if (user.role === "host") {
+      return <Navigate to="/host" replace />;
+    }
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet></Outlet>;

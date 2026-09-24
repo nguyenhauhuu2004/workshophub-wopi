@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CalendarDays, Clock3, Loader2, MapPin, Users } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  Flame,
+  LayoutDashboard,
+  Loader2,
+  MapPin,
+  Pencil,
+  ShieldAlert,
+  Sparkles,
+  Users,
+} from "lucide-react";
 
 import axios from "axios";
 import { toast } from "sonner";
@@ -8,6 +19,7 @@ import { useNavigate, useParams } from "react-router";
 
 import BookingCard, { type FullBookingData } from "@/components/BookingCard";
 import MobileBookingDrawer from "@/components/MobileBookingDrawer";
+import { Button } from "@/components/ui/button";
 
 import type { BookingSession } from "@/types/booking";
 
@@ -23,6 +35,7 @@ import { userService } from "@/services/userService";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 import type { Workshop } from "@/types/workshop";
+import { getWorkshopPriceInfo } from "@/utils/discountUtils";
 
 const NEARBY_DISTANCE = 10_000;
 
@@ -125,6 +138,11 @@ export function WorkshopDetail() {
         return;
       }
 
+      if (user?.role === "host") {
+        toast.error("Tài khoản Host không thể đặt vé workshop.");
+        return;
+      }
+
       if (
         !bookingData.attendeeInfo.name.trim() ||
         !bookingData.attendeeInfo.email.trim() ||
@@ -165,6 +183,7 @@ export function WorkshopDetail() {
           sessionId: bookingData.session.id,
           quantity: bookingData.quantity,
           paymentMethod: bookingData.paymentMethod,
+          discountCode: bookingData.discountCode,
           attendeeName: bookingData.attendeeInfo.name,
           attendeeEmail: bookingData.attendeeInfo.email,
           attendeePhone: bookingData.attendeeInfo.phone,
@@ -257,6 +276,19 @@ export function WorkshopDetail() {
     );
   }, [workshop]);
 
+  const priceInfo = useMemo(
+    () => getWorkshopPriceInfo(workshop ?? undefined),
+    [workshop],
+  );
+
+  const isHost = user?.role === "host";
+  const hostId = workshop
+    ? typeof workshop.host === "string"
+      ? workshop.host
+      : workshop.host?._id
+    : null;
+  const isOwnWorkshop = Boolean(isHost && user?._id && hostId === user._id);
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -314,6 +346,23 @@ export function WorkshopDetail() {
             <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
               {workshop.title}
             </h1>
+
+            {priceInfo.hasDiscount && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50/80 p-3.5 text-sm dark:border-red-900/50 dark:bg-red-950/40">
+                <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-red-600 to-rose-600 px-3 py-1 text-xs font-black uppercase text-white shadow-sm">
+                  <Flame className="size-3.5 fill-white" /> Giảm giá trực tiếp {priceInfo.discountBadge}
+                </span>
+                <span className="text-sm text-muted-foreground line-through">
+                  {priceInfo.originalPrice.toLocaleString("vi-VN")}đ
+                </span>
+                <span className="text-lg font-black text-red-600 dark:text-red-400">
+                  {priceInfo.finalPrice.toLocaleString("vi-VN")}đ / người
+                </span>
+                <span className="text-xs font-medium text-red-700/80 dark:text-red-300/80">
+                  (Đã tự động trừ vào giá đặt chỗ)
+                </span>
+              </div>
+            )}
 
             <p className="mt-8 whitespace-pre-line text-base leading-7 text-muted-foreground">
               {workshop.description}
@@ -414,34 +463,171 @@ export function WorkshopDetail() {
         </div>
 
         <aside className="hidden lg:block lg:sticky lg:top-24 lg:h-fit">
-          <BookingCard
-            className="h-fit"
-            pricePerPerson={workshop.price}
-            sessions={sessions}
-            taxRate={0.08}
-            location={workshop.location.address}
-            defaultAttendee={defaultAttendee}
-            onBook={handleBook}
-            disabled={booking}
-          />
+          {isHost ? (
+            isOwnWorkshop ? (
+              <div className="rounded-3xl border border-emerald-300 bg-gradient-to-b from-emerald-50/80 via-white to-stone-50 p-6 shadow-md">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex size-7 items-center justify-center rounded-lg bg-[#315d43] text-white shadow-xs">
+                    <Sparkles className="size-4" />
+                  </span>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                    Workshop của bạn
+                  </span>
+                </div>
 
-          {booking && (
-            <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Đang xử lý đặt chỗ...
-            </div>
+                <h3 className="text-lg font-black text-stone-900">
+                  Quản lý Workshop
+                </h3>
+                <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+                  Bạn đang xem workshop dưới góc nhìn của học viên. Chức năng đặt vé và thanh toán bị vô hiệu hóa cho tài khoản Host.
+                </p>
+
+                <div className="my-5 space-y-2.5 rounded-2xl border border-stone-200/70 bg-stone-50/80 p-4 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Học phí:</span>
+                    <span className="font-bold text-stone-900">
+                      {workshop.price.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Lịch tổ chức:</span>
+                    <span className="font-bold text-stone-900">
+                      {sessions.length} buổi
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Thời lượng:</span>
+                    <span className="font-bold text-stone-900">
+                      {workshop.duration || "Chưa thiết lập"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Trạng thái:</span>
+                    <span className="font-bold text-emerald-700 capitalize">
+                      {workshop.status === "published"
+                        ? "Đang mở đặt vé"
+                        : workshop.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <Button
+                    onClick={() => navigate(`/workshops/${workshop._id}/edit`)}
+                    className="w-full rounded-xl bg-[#315d43] hover:bg-[#284936] text-white font-bold"
+                  >
+                    <Pencil className="mr-2 size-4" />
+                    Chỉnh sửa workshop & Lịch
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/host")}
+                    className="w-full rounded-xl border-stone-300 font-semibold"
+                  >
+                    <LayoutDashboard className="mr-2 size-4 text-stone-600" />
+                    Bảng điều khiển Host
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-amber-300 bg-gradient-to-b from-amber-50/70 via-white to-stone-50 p-6 shadow-md">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex size-7 items-center justify-center rounded-lg bg-amber-600 text-white shadow-xs">
+                    <ShieldAlert className="size-4" />
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                    Tài khoản Host
+                  </span>
+                </div>
+
+                <h3 className="text-lg font-black text-stone-900">
+                  Không áp dụng đặt vé
+                </h3>
+                <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+                  Bạn đang đăng nhập bằng tài khoản <strong className="text-stone-800">Host</strong>. Chức năng đặt vé và thanh toán chỉ áp dụng cho tài khoản <strong className="text-stone-800">Thành viên (Học viên)</strong>.
+                </p>
+
+                <div className="my-5 rounded-2xl border border-amber-200/80 bg-amber-50/50 p-3.5 text-xs text-amber-900">
+                  💡 Để đặt chỗ tham gia workshop này, vui lòng đăng nhập bằng tài khoản người dùng thông thường.
+                </div>
+
+                <div className="space-y-2.5">
+                  <Button
+                    onClick={() => navigate("/host")}
+                    className="w-full rounded-xl bg-[#315d43] hover:bg-[#284936] text-white font-bold"
+                  >
+                    <LayoutDashboard className="mr-2 size-4" />
+                    Về Bảng điều khiển Host của tôi
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/workshops")}
+                    className="w-full rounded-xl border-stone-300 font-semibold"
+                  >
+                    Khám phá workshop khác
+                  </Button>
+                </div>
+              </div>
+            )
+          ) : (
+            <>
+              <BookingCard
+                className="h-fit"
+                workshopId={workshop._id}
+                pricePerPerson={priceInfo.finalPrice}
+                sessions={sessions}
+                taxRate={0}
+                location={workshop.location.address}
+                defaultAttendee={defaultAttendee}
+                onBook={handleBook}
+                disabled={booking}
+              />
+
+              {booking && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  Đang xử lý đặt chỗ...
+                </div>
+              )}
+            </>
           )}
         </aside>
       </div>
 
-      <MobileBookingDrawer
-        pricePerPerson={workshop.price}
-        sessions={sessions}
-        location={workshop.location.address}
-        defaultAttendee={defaultAttendee}
-        disabled={booking}
-        onBook={handleBook}
-      />
+      {isHost ? (
+        isOwnWorkshop ? (
+          <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-emerald-200 bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden shadow-lg">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-emerald-800">👑 Workshop của bạn</p>
+                <p className="text-[11px] text-stone-500">
+                  {workshop.price.toLocaleString("vi-VN")}đ
+                </p>
+              </div>
+              <Button
+                onClick={() => navigate(`/workshops/${workshop._id}/edit`)}
+                className="rounded-xl bg-[#315d43] hover:bg-[#284936] text-white font-bold text-xs px-4"
+              >
+                <Pencil className="mr-1.5 size-3.5" />
+                Chỉnh sửa workshop
+              </Button>
+            </div>
+          </div>
+        ) : null
+      ) : (
+        <MobileBookingDrawer
+          workshopId={workshop._id}
+          pricePerPerson={priceInfo.finalPrice}
+          originalPrice={priceInfo.hasDiscount ? priceInfo.originalPrice : undefined}
+          sessions={sessions}
+          location={workshop.location.address}
+          defaultAttendee={defaultAttendee}
+          disabled={booking}
+          onBook={handleBook}
+        />
+      )}
     </main>
   );
 }

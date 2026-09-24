@@ -12,12 +12,13 @@ import {
   X,
 } from "lucide-react";
 
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { bookingService } from "@/services/bookingService";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 import type {
   Booking,
@@ -139,6 +140,12 @@ const canShowCheckInTicket = (booking: Booking) => {
 };
 
 export default function MyBookingsPage() {
+  const { user } = useAuthStore();
+
+  if (user?.role === "host") {
+    return <Navigate to="/host" replace />;
+  }
+
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);

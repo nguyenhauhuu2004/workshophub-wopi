@@ -7,13 +7,18 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Eye,
+  Flame,
   Loader2,
   Megaphone,
   Pencil,
   Plus,
   QrCode,
   Search,
+  Tag,
   TicketCheck,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 
 import axios from "axios";
@@ -33,12 +38,15 @@ import type {
   PromotionPackage,
 } from "@/types/host";
 
+import type { DiscountRow } from "@/types/discount";
+
 type DashboardTab =
   | "overview"
   | "workshops"
   | "bookings"
   | "checkin"
-  | "promotions";
+  | "promotions"
+  | "discounts";
 
 const TABS: Array<{
   value: DashboardTab;
@@ -64,6 +72,11 @@ const TABS: Array<{
     value: "checkin",
     label: "Check-in",
     icon: <QrCode className="size-4" />,
+  },
+  {
+    value: "discounts",
+    label: "Giảm giá",
+    icon: <Tag className="size-4" />,
   },
   {
     value: "promotions",
@@ -173,6 +186,20 @@ export default function HostDashboardPage() {
 
   const [promotionLoading, setPromotionLoading] = useState(false);
 
+  const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
+
+  const [discountForm, setDiscountForm] = useState({
+    workshopId: "",
+    applyType: "direct" as "code" | "direct",
+    code: "",
+    type: "percentage" as "percentage" | "fixed",
+    value: "",
+    maxUsage: "",
+    expiresAt: "",
+  });
+
+  const [discountLoading, setDiscountLoading] = useState(false);
+
   useEffect(() => {
     let active = true;
 
@@ -186,12 +213,14 @@ export default function HostDashboardPage() {
           bookingData,
           packageData,
           campaignData,
+          discountData,
         ] = await Promise.all([
           hostService.getDashboard(),
           hostService.getWorkshops(),
           hostService.getBookings(),
           hostService.getPromotionPackages(),
           hostService.getPromotionCampaigns(),
+          hostService.getDiscounts(),
         ]);
 
         if (!active) {
@@ -203,9 +232,11 @@ export default function HostDashboardPage() {
         setBookings(bookingData);
         setPromotionPackages(packageData);
         setCampaigns(campaignData);
+        setDiscounts(discountData);
 
         if (workshopData[0]) {
           setPromotionWorkshopId(workshopData[0]._id);
+          setDiscountForm((prev) => ({ ...prev, workshopId: workshopData[0]._id }));
         }
 
         if (packageData[0]) {
@@ -360,6 +391,70 @@ export default function HostDashboardPage() {
     }
   };
 
+  const handleCreateDiscount = async () => {
+    if (!discountForm.workshopId || !discountForm.value || discountLoading) {
+      toast.error("Vui lòng chọn workshop và nhập mức giảm giá");
+      return;
+    }
+
+    if (discountForm.applyType === "code" && !discountForm.code.trim()) {
+      toast.error("Vui lòng nhập mã giảm giá");
+      return;
+    }
+
+    try {
+      setDiscountLoading(true);
+
+      const result = await hostService.createDiscount({
+        workshopId: discountForm.workshopId,
+        applyType: discountForm.applyType,
+        code: discountForm.applyType === "direct" ? undefined : discountForm.code,
+        type: discountForm.type,
+        value: Number(discountForm.value),
+        maxUsage:
+          discountForm.applyType === "direct"
+            ? null
+            : discountForm.maxUsage
+              ? Number(discountForm.maxUsage)
+              : null,
+        expiresAt: discountForm.expiresAt || null,
+      });
+
+      setDiscounts((current) => [result.discount, ...current]);
+      setDiscountForm((prev) => ({ ...prev, code: "", value: "", maxUsage: "", expiresAt: "" }));
+      toast.success(result.message);
+    } catch (error) {
+      console.error("Create discount error:", error);
+      toast.error(getApiErrorMessage(error, "Không thể tạo giảm giá"));
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
+
+  const handleToggleDiscount = async (discountId: string) => {
+    try {
+      const result = await hostService.toggleDiscount(discountId);
+      setDiscounts((current) =>
+        current.map((d) =>
+          d._id === discountId ? { ...d, isActive: !d.isActive } : d,
+        ),
+      );
+      toast.success(result.message);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể cập nhật mã giảm giá"));
+    }
+  };
+
+  const handleDeleteDiscount = async (discountId: string) => {
+    try {
+      await hostService.deleteDiscount(discountId);
+      setDiscounts((current) => current.filter((d) => d._id !== discountId));
+      toast.success("Đã xóa mã giảm giá");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Không thể xóa mã giảm giá"));
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#f6f8f5] px-4 py-6 text-[#193a2a] sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px]">
@@ -459,6 +554,19 @@ export default function HostDashboardPage() {
                 onPackageChange={setPromotionPackageCode}
                 onStartAtChange={setPromotionStartAt}
                 onCreate={handleCreatePromotion}
+              />
+            )}
+
+            {activeTab === "discounts" && (
+              <DiscountsTab
+                workshops={workshops}
+                discounts={discounts}
+                form={discountForm}
+                loading={discountLoading}
+                onFormChange={setDiscountForm}
+                onCreate={handleCreateDiscount}
+                onToggle={handleToggleDiscount}
+                onDelete={handleDeleteDiscount}
               />
             )}
           </div>
@@ -1310,6 +1418,400 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <dt className="text-[#718078]">{label}</dt>
 
       <dd className="text-right font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+function DiscountsTab({
+  workshops,
+  discounts,
+  form,
+  loading,
+  onFormChange,
+  onCreate,
+  onToggle,
+  onDelete,
+}: {
+  workshops: HostWorkshopRow[];
+  discounts: DiscountRow[];
+  form: {
+    workshopId: string;
+    applyType: "code" | "direct";
+    code: string;
+    type: "percentage" | "fixed";
+    value: string;
+    maxUsage: string;
+    expiresAt: string;
+  };
+  loading: boolean;
+  onFormChange: React.Dispatch<
+    React.SetStateAction<{
+      workshopId: string;
+      applyType: "code" | "direct";
+      code: string;
+      type: "percentage" | "fixed";
+      value: string;
+      maxUsage: string;
+      expiresAt: string;
+    }>
+  >;
+  onCreate: () => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Form tạo giảm giá */}
+      <section className="rounded-3xl border border-[#e0e7df] bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between border-b border-[#edf0ec] pb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[#eaf3eb] text-[#214c36]">
+              {form.applyType === "direct" ? (
+                <Flame className="size-5 text-red-600" />
+              ) : (
+                <Tag className="size-5 text-[#214c36]" />
+              )}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#193a2a]">
+                {form.applyType === "direct"
+                  ? "Thiết lập giảm giá trực tiếp (Hiện trên Card)"
+                  : "Tạo mã khuyến mãi (Nhập mã khi đặt chỗ)"}
+              </h2>
+              <p className="text-xs text-[#627269]">
+                {form.applyType === "direct"
+                  ? "Tự động gạch ngang giá cũ, hiện huy hiệu giảm giá nổi bật và trừ tiền trực tiếp khi khách đặt chỗ."
+                  : "Tạo mã voucher để khách hàng nhập vào khi đặt vé để được giảm học phí."}
+              </p>
+            </div>
+          </div>
+
+          {/* Chọn 2 dạng giảm giá */}
+          <div className="flex rounded-xl bg-[#eff4ed] p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() =>
+                onFormChange((prev) => ({ ...prev, applyType: "direct" }))
+              }
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
+                form.applyType === "direct"
+                  ? "bg-[#214c36] text-white shadow-sm"
+                  : "text-[#627269] hover:text-[#193a2a]"
+              }`}
+            >
+              <Flame className="size-3.5 text-amber-300" />
+              Giảm trực tiếp (Card)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onFormChange((prev) => ({ ...prev, applyType: "code" }))
+              }
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
+                form.applyType === "code"
+                  ? "bg-[#214c36] text-white shadow-sm"
+                  : "text-[#627269] hover:text-[#193a2a]"
+              }`}
+            >
+              <Tag className="size-3.5" />
+              Tạo mã Voucher
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Workshop */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+              Áp dụng cho Workshop <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={form.workshopId}
+              onChange={(e) =>
+                onFormChange((prev) => ({ ...prev, workshopId: e.target.value }))
+              }
+              className="w-full rounded-xl border border-[#d2ded1] bg-white px-3 py-2 text-sm text-[#193a2a] outline-none focus:border-[#214c36]"
+            >
+              <option value="">-- Chọn workshop --</option>
+              {workshops.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Mã giảm giá (chỉ hiện khi applyType === 'code') */}
+          {form.applyType === "code" ? (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+                Mã giảm giá (Code) <span className="text-red-500">*</span>
+              </label>
+              <Input
+                placeholder="VD: GIAM20, CHAOMUNG"
+                value={form.code}
+                onChange={(e) =>
+                  onFormChange((prev) => ({
+                    ...prev,
+                    code: e.target.value.toUpperCase().replace(/\s+/g, ""),
+                  }))
+                }
+                className="rounded-xl border-[#d2ded1]"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+                Hình thức hiển thị
+              </label>
+              <div className="flex h-10 items-center rounded-xl border border-dashed border-[#8bb89b] bg-[#f2f8f3] px-3 text-xs font-medium text-[#214c36]">
+                <Flame className="mr-1.5 size-4 text-red-500" />
+                Hiển thị giá gạch ngang & tag giảm giá trên Card
+              </div>
+            </div>
+          )}
+
+          {/* Loại giảm giá */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+              Loại giảm giá <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  onFormChange((prev) => ({ ...prev, type: "percentage" }))
+                }
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                  form.type === "percentage"
+                    ? "border-[#214c36] bg-[#214c36] text-white"
+                    : "border-[#d2ded1] bg-white text-[#627269] hover:bg-[#eff4ed]"
+                }`}
+              >
+                % Phần trăm
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onFormChange((prev) => ({ ...prev, type: "fixed" }))
+                }
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                  form.type === "fixed"
+                    ? "border-[#214c36] bg-[#214c36] text-white"
+                    : "border-[#d2ded1] bg-white text-[#627269] hover:bg-[#eff4ed]"
+                }`}
+              >
+                Số tiền (VNĐ)
+              </button>
+            </div>
+          </div>
+
+          {/* Giá trị giảm */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+              {form.type === "percentage"
+                ? "Mức giảm (%) *"
+                : "Số tiền giảm (VNĐ) *"}
+            </label>
+            <Input
+              type="number"
+              min={1}
+              max={form.type === "percentage" ? 100 : undefined}
+              placeholder={form.type === "percentage" ? "VD: 20 (cho 20%)" : "VD: 50000"}
+              value={form.value}
+              onChange={(e) =>
+                onFormChange((prev) => ({ ...prev, value: e.target.value }))
+              }
+              className="rounded-xl border-[#d2ded1]"
+            />
+          </div>
+
+          {/* Số lượng giới hạn (chỉ khi là mã code) */}
+          {form.applyType === "code" ? (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+                Số lượng mã (để trống nếu không giới hạn)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                placeholder="VD: 50 (lần sử dụng)"
+                value={form.maxUsage}
+                onChange={(e) =>
+                  onFormChange((prev) => ({ ...prev, maxUsage: e.target.value }))
+                }
+                className="rounded-xl border-[#d2ded1]"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+                Phạm vi áp dụng
+              </label>
+              <div className="flex h-10 items-center rounded-xl border border-[#d2ded1] bg-[#fafbf9] px-3 text-xs text-[#526359]">
+                Áp dụng cho mọi khách tham gia trong thời gian mở
+              </div>
+            </div>
+          )}
+
+          {/* Ngày hết hạn */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-[#4f5f56]">
+              Ngày hết hạn (tùy chọn)
+            </label>
+            <Input
+              type="date"
+              value={form.expiresAt}
+              onChange={(e) =>
+                onFormChange((prev) => ({ ...prev, expiresAt: e.target.value }))
+              }
+              className="rounded-xl border-[#d2ded1]"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <Button
+            type="button"
+            disabled={loading}
+            onClick={onCreate}
+            className={`rounded-xl text-white ${
+              form.applyType === "direct"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-[#214c36] hover:bg-[#183928]"
+            }`}
+          >
+            {loading ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : form.applyType === "direct" ? (
+              <Flame className="mr-2 size-4" />
+            ) : (
+              <Plus className="mr-2 size-4" />
+            )}
+            {form.applyType === "direct"
+              ? "Áp dụng giảm giá trực tiếp"
+              : "Tạo mã khuyến mãi"}
+          </Button>
+        </div>
+      </section>
+
+      {/* Danh sách giảm giá đã tạo */}
+      <section className="rounded-3xl border border-[#e0e7df] bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-[#193a2a]">Danh sách giảm giá ({discounts.length})</h2>
+        <p className="mt-1 text-xs text-[#627269]">
+          Quản lý các giảm giá trực tiếp và mã voucher bạn đã tạo cho các workshop.
+        </p>
+
+        {discounts.length === 0 ? (
+          <div className="mt-8 flex flex-col items-center justify-center py-12 text-center">
+            <Tag className="size-12 text-[#9bb0a3]" />
+            <p className="mt-3 text-sm font-semibold text-[#3b4c41]">Chưa có giảm giá nào</p>
+            <p className="mt-1 text-xs text-[#718078]">
+              Tạo giảm giá trực tiếp hoặc mã voucher ở khung trên để thu hút học viên!
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-[#edf0ec] text-xs font-semibold text-[#627269]">
+                  <th className="pb-3 pr-4">Hình thức</th>
+                  <th className="pb-3 pr-4">Mã / Nhận diện</th>
+                  <th className="pb-3 pr-4">Workshop</th>
+                  <th className="pb-3 pr-4">Mức giảm</th>
+                  <th className="pb-3 pr-4">Lượt dùng</th>
+                  <th className="pb-3 pr-4">Hạn dùng</th>
+                  <th className="pb-3 pr-4">Trạng thái</th>
+                  <th className="pb-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#edf0ec]">
+                {discounts.map((d) => (
+                  <tr key={d._id} className="hover:bg-[#f9faf8]">
+                    <td className="py-3.5 pr-4">
+                      {d.applyType === "direct" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
+                          <Flame className="size-3 text-rose-600" />
+                          Trực tiếp trên Card
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                          <Tag className="size-3 text-blue-600" />
+                          Mã Voucher
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      {d.applyType === "direct" ? (
+                        <span className="text-xs font-medium text-[#627269]">Tự động trừ</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#eaf3eb] px-2.5 py-1 font-mono text-xs font-bold text-[#214c36]">
+                          {d.code}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 pr-4 font-medium text-[#193a2a] max-w-[200px] truncate">
+                      {d.workshopTitle}
+                    </td>
+                    <td className="py-3.5 pr-4 font-semibold text-[#214c36]">
+                      {d.type === "percentage"
+                        ? `Giảm ${d.value}%`
+                        : `Giảm ${new Intl.NumberFormat("vi-VN").format(d.value)}đ`}
+                    </td>
+                    <td className="py-3.5 pr-4 text-xs text-[#4f5f56]">
+                      {d.applyType === "direct"
+                        ? "Không giới hạn"
+                        : `${d.usedCount} / ${d.maxUsage != null ? d.maxUsage : "∞"}`}
+                    </td>
+                    <td className="py-3.5 pr-4 text-xs text-[#627269]">
+                      {d.expiresAt ? new Date(d.expiresAt).toLocaleDateString("vi-VN") : "Vô thời hạn"}
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          d.isActive
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {d.isActive ? "Đang bật" : "Đã tắt"}
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onToggle(d._id)}
+                          title={d.isActive ? "Tạm tắt mã" : "Kích hoạt mã"}
+                          className={`rounded-lg p-1.5 text-xs font-semibold transition ${
+                            d.isActive
+                              ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {d.isActive ? (
+                            <ToggleRight className="size-4" />
+                          ) : (
+                            <ToggleLeft className="size-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(d._id)}
+                          title="Xóa mã"
+                          className="rounded-lg p-1.5 text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

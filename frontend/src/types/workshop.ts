@@ -34,6 +34,9 @@ export type WorkshopFormData = {
   duration: string;
   includes: string[];
 
+  maxPayAtVenue?: number | null;
+  maxQrPayment?: number | null;
+
   thumbnail: File | null;
   gallery: File[];
   video: File | null;
@@ -58,6 +61,16 @@ export type Workshop = {
   includes: string[];
   price: number;
   duration: string;
+
+  directDiscount?: {
+    type: "percentage" | "fixed";
+    value: number;
+    isActive: boolean;
+    expiresAt?: string | null;
+  } | null;
+
+  maxPayAtVenue?: number | null;
+  maxQrPayment?: number | null;
 
   thumbnail: WorkshopMedia;
   gallery: WorkshopMedia[];
@@ -108,6 +121,9 @@ export type UpdateWorkshopPayload = Partial<
     | "duration"
     | "location"
     | "status"
+    | "maxPayAtVenue"
+    | "maxQrPayment"
+    | "directDiscount"
   >
 >;
 
@@ -115,3 +131,7 @@ export type CreateWorkshopSchedulePayload = Pick<
   WorkshopSchedule,
   "startAt" | "seatsTotal"
 >;
+
+export type BulkCreateWorkshopSchedulePayload = {
+  schedules: CreateWorkshopSchedulePayload[];
+};

@@ -30,10 +30,7 @@ const METHODS: PaymentMethodItem[] = [
     value: "qr",
     icon: <QrCode className="size-5" />,
     title: "Chuyển khoản QR (VietQR)",
-    description: "Tạm thời không hỗ trợ — cổng thanh toán đang bảo trì",
-    badge: "Tạm ngưng",
-    badgeColor: "bg-amber-100 text-amber-800",
-    disabled: true,
+    description: "Chuyển khoản nhanh 24/7 qua mã VietQR — xác nhận tự động",
   },
 ];
 

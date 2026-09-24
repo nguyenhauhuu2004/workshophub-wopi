@@ -1,8 +1,9 @@
-import { CalendarDays, Clock3, Heart, MapPin, Star, Users, Navigation } from "lucide-react";
+import { CalendarDays, Clock3, Flame, Heart, MapPin, Star, Users, Navigation } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import type { Workshop } from "@/types/workshop";
 import { formatDistance } from "@/utils/mapUtils";
+import { getWorkshopPriceInfo } from "@/utils/discountUtils";
 
 type WorkshopCardData = Workshop & {
   sponsored?: boolean;
@@ -78,6 +79,8 @@ const WorkshopCard = ({
 }: WorkshopCardProps) => {
   const nextSchedule = getNextSchedule(workshop);
 
+  const priceInfo = getWorkshopPriceInfo(workshop);
+
   const primaryCategory = workshop.categories?.[0] ?? "Workshop sáng tạo";
 
   const remainingCategoryCount = Math.max(
@@ -112,6 +115,13 @@ const WorkshopCard = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
 
           <div className="absolute left-3 top-3 flex max-w-[calc(100%-64px)] flex-wrap gap-2">
+            {priceInfo.hasDiscount && (
+              <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-orange-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
+                <Flame className="size-3 fill-white" />
+                {priceInfo.discountBadge}
+              </span>
+            )}
+
             {workshop.sponsored && (
               <span className="rounded-full bg-accent px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-accent-foreground shadow-soft">
                 Quảng bá
@@ -212,9 +222,25 @@ const WorkshopCard = ({
             <div>
               <p className="text-[11px] text-muted-foreground">Giá từ</p>
 
-              <p className="mt-0.5 text-lg font-black text-primary">
-                {formatPrice(workshop.price)}
-              </p>
+              {priceInfo.hasDiscount ? (
+                <div className="mt-0.5 flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground line-through">
+                      {formatPrice(priceInfo.originalPrice)}
+                    </span>
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-extrabold text-red-600 dark:bg-red-950 dark:text-red-400">
+                      {priceInfo.discountBadge}
+                    </span>
+                  </div>
+                  <p className="text-lg font-black text-red-600 dark:text-red-400">
+                    {formatPrice(priceInfo.finalPrice)}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-0.5 text-lg font-black text-primary">
+                  {formatPrice(workshop.price)}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-1 text-xs">

@@ -8,20 +8,26 @@ import {
 import {
   ArrowLeft,
   CalendarDays,
+  Flame,
   Loader2,
   Plus,
+  Repeat,
   Save,
   Users,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import RecurringScheduleModal, {
+  type GeneratedSchedule,
+} from "@/components/RecurringScheduleModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORIES } from "@/data";
 import { workshopService } from "@/services/workshopService";
 import type {
+  BulkCreateWorkshopSchedulePayload,
   CreateWorkshopSchedulePayload,
   UpdateWorkshopPayload,
   Workshop,
@@ -35,6 +41,11 @@ type EditWorkshopForm = {
   includesText: string;
   price: string;
   duration: string;
+  directDiscountEnabled: boolean;
+  directDiscountType: "percentage" | "fixed";
+  directDiscountValue: string;
+  maxPayAtVenue: string;
+  maxQrPayment: string;
   status: "draft" | "published" | "cancelled" | "archived";
   address: string;
   placeId: string;
@@ -54,6 +65,11 @@ const createInitialForm = (workshop: Workshop): EditWorkshopForm => ({
   includesText: (workshop.includes ?? []).join("\n"),
   price: String(workshop.price),
   duration: workshop.duration ?? "",
+  directDiscountEnabled: workshop.directDiscount?.isActive ?? false,
+  directDiscountType: workshop.directDiscount?.type ?? "percentage",
+  directDiscountValue: workshop.directDiscount?.value ? String(workshop.directDiscount.value) : "",
+  maxPayAtVenue: workshop.maxPayAtVenue != null ? String(workshop.maxPayAtVenue) : "",
+  maxQrPayment: workshop.maxQrPayment != null ? String(workshop.maxQrPayment) : "",
   status: workshop.status ?? "published",
   address: workshop.location.address,
   placeId: workshop.location.placeId ?? "",
@@ -113,6 +129,8 @@ export default function EditWorkshopPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addingSchedule, setAddingSchedule] = useState(false);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [addingBulkSchedule, setAddingBulkSchedule] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -245,6 +263,20 @@ export default function EditWorkshopPage() {
       includes: splitLines(form.includesText),
       price: Number(form.price),
       duration: form.duration.trim(),
+      maxPayAtVenue: form.maxPayAtVenue !== "" ? Number(form.maxPayAtVenue) : null,
+      maxQrPayment: form.maxQrPayment !== "" ? Number(form.maxQrPayment) : null,
+      directDiscount:
+        form.directDiscountEnabled && Number(form.directDiscountValue) > 0
+          ? {
+              type: form.directDiscountType,
+              value: Number(form.directDiscountValue),
+              isActive: true,
+            }
+          : {
+              type: form.directDiscountType,
+              value: 0,
+              isActive: false,
+            },
       status: form.status,
       location: {
         address: form.address.trim(),
@@ -329,6 +361,40 @@ export default function EditWorkshopPage() {
       );
     } finally {
       setAddingSchedule(false);
+    }
+  };
+
+  const handleApplyRecurringSchedules = async (
+    generated: GeneratedSchedule[],
+  ) => {
+    if (!id || !workshop || generated.length === 0 || addingBulkSchedule) {
+      return;
+    }
+
+    try {
+      setAddingBulkSchedule(true);
+      const payload: BulkCreateWorkshopSchedulePayload = {
+        schedules: generated.map((s) => ({
+          startAt: new Date(s.startAt).toISOString(),
+          seatsTotal: s.seatsTotal,
+        })),
+      };
+
+      const updatedWorkshop = await workshopService.addWorkshopSchedule(
+        id,
+        payload,
+      );
+
+      setWorkshop(updatedWorkshop);
+      setShowRecurringModal(false);
+      toast.success(`Đã thêm thành công ${generated.length} buổi tổ chức!`);
+    } catch (error) {
+      console.error("Bulk add schedule error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Không thể thêm lịch lặp lại",
+      );
+    } finally {
+      setAddingBulkSchedule(false);
     }
   };
 
@@ -496,6 +562,131 @@ export default function EditWorkshopPage() {
                 </Field>
               </div>
 
+              {/* Giảm giá trực tiếp (hiển thị trên Card) */}
+              <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50/60 to-orange-50/40 p-4.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-rose-500 text-white shadow-sm">
+                      <Flame className="size-4" />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-stone-900 text-sm">
+                        Giảm giá trực tiếp hiển thị trên Card
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Tự động gạch ngang giá gốc và hiển thị huy hiệu giảm giá nổi bật
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      className="peer sr-only"
+                      checked={form.directDiscountEnabled}
+                      onChange={(e) => setField("directDiscountEnabled", e.target.checked)}
+                    />
+                    <div className="peer h-6 w-11 rounded-full bg-stone-300 after:absolute after:left-[2px] after:top-[2px] after:size-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-rose-500 peer-checked:after:translate-x-full" />
+                  </label>
+                </div>
+
+                {form.directDiscountEnabled && (
+                  <div className="mt-4 grid gap-4 border-t border-rose-100 pt-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                        Hình thức giảm
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setField("directDiscountType", "percentage")}
+                          className={`rounded-xl border py-2 text-xs font-medium transition ${
+                            form.directDiscountType === "percentage"
+                              ? "border-rose-500 bg-rose-500 text-white shadow-sm"
+                              : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                          }`}
+                        >
+                          Theo phần trăm (%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setField("directDiscountType", "fixed")}
+                          className={`rounded-xl border py-2 text-xs font-medium transition ${
+                            form.directDiscountType === "fixed"
+                              ? "border-rose-500 bg-rose-500 text-white shadow-sm"
+                              : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                          }`}
+                        >
+                          Số tiền cố định (đ)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                        Mức giảm giá
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={form.directDiscountType === "percentage" ? 100 : undefined}
+                          value={form.directDiscountValue}
+                          onChange={(e) => setField("directDiscountValue", e.target.value)}
+                          placeholder={form.directDiscountType === "percentage" ? "VD: 20 (nghĩa là 20%)" : "VD: 50000"}
+                          className="pr-12"
+                        />
+                        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-400">
+                          {form.directDiscountType === "percentage" ? "%" : "VNĐ"}
+                        </span>
+                      </div>
+                      {Number(form.directDiscountValue) > 0 && Number(form.price) > 0 && (
+                        <p className="mt-1 text-xs text-rose-600 font-medium">
+                          Giá sau giảm:{" "}
+                          {(
+                            form.directDiscountType === "percentage"
+                              ? Math.max(0, Math.round(Number(form.price) * (1 - Number(form.directDiscountValue) / 100)))
+                              : Math.max(0, Number(form.price) - Number(form.directDiscountValue))
+                          ).toLocaleString("vi-VN")}
+                          đ
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  label="Giới hạn thanh toán tại workshop"
+                  hint="Số người tối đa (để trống nếu không giới hạn)"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.maxPayAtVenue}
+                    onChange={(event) =>
+                      setField("maxPayAtVenue", event.target.value)
+                    }
+                    placeholder="Không giới hạn"
+                  />
+                </Field>
+
+                <Field
+                  label="Giới hạn chuyển khoản QR"
+                  hint="Số người tối đa (để trống nếu không giới hạn)"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.maxQrPayment}
+                    onChange={(event) =>
+                      setField("maxQrPayment", event.target.value)
+                    }
+                    placeholder="Không giới hạn"
+                  />
+                </Field>
+              </div>
+
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Điểm nổi bật" hint="Mỗi dòng là một nội dung">
                   <Textarea
@@ -614,6 +805,17 @@ export default function EditWorkshopPage() {
                 Thêm lịch
               </Button>
             </form>
+
+            <div className="mt-4 pt-4 border-t border-[#d5ded6]">
+              <button
+                type="button"
+                onClick={() => setShowRecurringModal(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#315d43] bg-white px-3 py-2.5 text-xs font-bold text-[#315d43] shadow-xs transition hover:bg-[#315d43] hover:text-white"
+              >
+                <Repeat className="size-3.5" />
+                Tạo lịch lặp lại theo thứ (Hàng loạt)
+              </button>
+            </div>
           </section>
 
           <section className="rounded-3xl border border-[#e1e7df] bg-white p-5 shadow-sm">
@@ -697,6 +899,14 @@ export default function EditWorkshopPage() {
           </section>
         </aside>
       </div>
+
+      <RecurringScheduleModal
+        isOpen={showRecurringModal}
+        onClose={() => setShowRecurringModal(false)}
+        onApply={handleApplyRecurringSchedules}
+        isSubmitting={addingBulkSchedule}
+        title="Tạo lịch lặp lại theo thứ cho workshop"
+      />
     </main>
   );
 }

@@ -2,16 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CalendarDays,
+  Check,
   Clock3,
   Loader2,
   MapPin,
   Minus,
   Plus,
+  Tag,
   Users,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import api from "@/lib/axios";
 import AttendeeInfoForm, { type AttendeeInfo } from "@/components/AttendeeInfoForm";
 import PaymentMethodSelector from "@/components/PaymentMethodSelector";
 
@@ -21,9 +26,11 @@ export type FullBookingData = BookingCardData & {
   paymentMethod: BookingPaymentMethod;
   attendeeInfo: AttendeeInfo;
   saveAttendeeAsDefault: boolean;
+  discountCode?: string;
 };
 
 type BookingCardProps = {
+  workshopId?: string;
   pricePerPerson: number;
   sessions: BookingSession[];
   location: string;
@@ -72,11 +79,12 @@ const formatSessionTime = (startAt: string) => {
 };
 
 const BookingCard = ({
+  workshopId,
   pricePerPerson,
   sessions,
   location,
   defaultAttendee,
-  taxRate = 0.08,
+  taxRate: _taxRate = 0,
   disabled = false,
   className = "",
   onBook,
@@ -95,6 +103,15 @@ const BookingCard = ({
   const [quantity, setQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("pay_at_venue");
+
+  const [couponInput, setCouponInput] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    type: "percentage" | "fixed";
+    value: number;
+    message: string;
+  } | null>(null);
 
   const attendeeInfoRef = useRef<AttendeeInfo>({
     name: defaultAttendee?.name ?? "",
@@ -140,9 +157,42 @@ const BookingCard = ({
     [],
   );
 
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    if (!workshopId) {
+      toast.error("Không tìm thấy thông tin workshop");
+      return;
+    }
+    try {
+      setValidatingCoupon(true);
+      const res = await api.post("/discounts/validate", {
+        workshopId,
+        code,
+      });
+      setAppliedCoupon(res.data);
+      toast.success(`Đã áp dụng mã: ${res.data.message}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Mã giảm giá không hợp lệ");
+      setAppliedCoupon(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+  };
+
   const subtotal = pricePerPerson * quantity;
-  const taxAmount = Math.round(subtotal * taxRate);
-  const grossAmount = subtotal + taxAmount;
+  const discountAmount = appliedCoupon
+    ? appliedCoupon.type === "percentage"
+      ? Math.round((subtotal * appliedCoupon.value) / 100)
+      : Math.min(appliedCoupon.value, subtotal)
+    : 0;
+  // Bỏ thuế VAT cho người dùng
+  const grossAmount = Math.max(0, subtotal - discountAmount);
 
   const increaseQuantity = () => {
     if (!selectedSession) return;
@@ -188,6 +238,7 @@ const BookingCard = ({
         session: selectedSession,
         quantity,
         paymentMethod,
+        discountCode: appliedCoupon?.code,
         attendeeInfo: info,
         saveAttendeeAsDefault: saveAsDefaultRef.current,
       });
@@ -346,6 +397,49 @@ const BookingCard = ({
         disabled={isSubmitting}
       />
 
+      {/* Mã giảm giá */}
+      <div className="mt-5 space-y-2 border-t pt-5">
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <Tag className="size-3.5" /> Mã giảm giá (nếu có)
+        </label>
+        {appliedCoupon ? (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
+            <div className="flex items-center gap-2">
+              <Check className="size-4 text-emerald-600" />
+              <span>
+                <strong className="font-mono font-bold">{appliedCoupon.code}</strong>: {appliedCoupon.message}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemoveCoupon}
+              className="p-1 text-xs text-emerald-700 hover:text-red-600"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Nhập mã ưu đãi..."
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+              disabled={isSubmitting || validatingCoupon}
+              className="h-10 text-xs font-mono uppercase"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!couponInput.trim() || isSubmitting || validatingCoupon}
+              onClick={handleApplyCoupon}
+              className="h-10 shrink-0 px-4 text-xs font-semibold"
+            >
+              {validatingCoupon ? <Loader2 className="size-3.5 animate-spin" /> : "Áp dụng"}
+            </Button>
+          </div>
+        )}
+      </div>
+
       {/* Tổng tiền */}
       <div className="mt-5 space-y-3 border-t pt-5 text-sm">
         <div className="flex items-center justify-between gap-4">
@@ -356,14 +450,14 @@ const BookingCard = ({
           <span>{formatCurrency(subtotal)}</span>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground">
-            Thuế ({Math.round(taxRate * 100)}
-            %)
-          </span>
-
-          <span>{formatCurrency(taxAmount)}</span>
-        </div>
+        {discountAmount > 0 && (
+          <div className="flex items-center justify-between gap-4 text-emerald-600 font-medium">
+            <span className="flex items-center gap-1">
+              <Tag className="size-3.5" /> Giảm giá ({appliedCoupon?.code})
+            </span>
+            <span>-{formatCurrency(discountAmount)}</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-4 border-t pt-3">
           <span className="font-semibold">Tổng thanh toán</span>

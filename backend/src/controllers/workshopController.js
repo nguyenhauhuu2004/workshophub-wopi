@@ -206,7 +206,7 @@ export const createWorkshop = async (req, res) => {
 
     const videoFile = files.video?.[0];
 
-    const { title, description, price, duration, status } = req.body;
+    const { title, description, price, duration, status, maxPayAtVenue, maxQrPayment } = req.body;
 
     const categories = normalizeCategories(req.body.categories);
 
@@ -390,6 +390,8 @@ export const createWorkshop = async (req, res) => {
       },
 
       status: normalizedStatus,
+      maxPayAtVenue: maxPayAtVenue != null ? Number(maxPayAtVenue) : null,
+      maxQrPayment: maxQrPayment != null ? Number(maxQrPayment) : null,
     });
 
     return res.status(201).json({
@@ -513,6 +515,14 @@ export const updateWorkshop = async (req, res) => {
       updates.price = price;
     }
 
+    if (req.body.maxPayAtVenue !== undefined) {
+      updates.maxPayAtVenue = req.body.maxPayAtVenue != null ? Number(req.body.maxPayAtVenue) : null;
+    }
+
+    if (req.body.maxQrPayment !== undefined) {
+      updates.maxQrPayment = req.body.maxQrPayment != null ? Number(req.body.maxQrPayment) : null;
+    }
+
     if (req.body.location !== undefined) {
       const location = parseJSONField(req.body.location, null);
 
@@ -575,6 +585,10 @@ export const updateWorkshop = async (req, res) => {
       updates.status = status;
     }
 
+    if (req.body.directDiscount !== undefined) {
+      updates.directDiscount = req.body.directDiscount;
+    }
+
     workshop.set(updates);
 
     await workshop.save();
@@ -625,6 +639,89 @@ export const addWorkshopSchedule = async (req, res) => {
       });
     }
 
+    const workshop = await Workshop.findOne({
+      _id: workshopId,
+      host: userId,
+    });
+
+    if (!workshop) {
+      return res.status(404).json({
+        message: "Không tìm thấy workshop hoặc bạn không có quyền chỉnh sửa",
+      });
+    }
+
+    // Hỗ trợ thêm hàng loạt lịch lặp lại
+    if (Array.isArray(req.body.schedules)) {
+      if (req.body.schedules.length === 0) {
+        return res.status(400).json({
+          message: "Danh sách lịch không được để trống",
+        });
+      }
+
+      const existingTimes = new Set(
+        workshop.schedules.map((schedule) =>
+          new Date(schedule.startAt).getTime(),
+        ),
+      );
+
+      const addedSchedules = [];
+      const now = Date.now();
+
+      for (const item of req.body.schedules) {
+        const startAt = new Date(item.startAt);
+        const seatsTotal = Number(item.seatsTotal);
+
+        if (Number.isNaN(startAt.getTime()) || startAt.getTime() <= now) {
+          continue;
+        }
+
+        if (!Number.isInteger(seatsTotal) || seatsTotal < 1) {
+          continue;
+        }
+
+        const scheduleTime = startAt.getTime();
+        if (existingTimes.has(scheduleTime)) {
+          continue;
+        }
+
+        existingTimes.add(scheduleTime);
+        const newSchedule = {
+          startAt,
+          endAt: calculateEndAt(startAt, workshop.duration),
+          seatsTotal,
+          spotsLeft: seatsTotal,
+        };
+
+        workshop.schedules.push(newSchedule);
+        addedSchedules.push(newSchedule);
+      }
+
+      if (addedSchedules.length === 0) {
+        return res.status(400).json({
+          message:
+            "Không có lịch hợp lệ nào được thêm (có thể do trùng lịch hoặc thời gian không hợp lệ)",
+        });
+      }
+
+      workshop.schedules.sort(
+        (a, b) =>
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      );
+
+      workshop.nextScheduleStartAt = calculateNextScheduleStartAt(
+        workshop.schedules,
+      );
+
+      await workshop.save();
+
+      return res.status(201).json({
+        message: `Đã thêm thành công ${addedSchedules.length} lịch workshop`,
+        addedCount: addedSchedules.length,
+        schedules: addedSchedules,
+        workshop,
+      });
+    }
+
     const startAt = new Date(req.body.startAt);
 
     const seatsTotal = Number(req.body.seatsTotal);
@@ -644,17 +741,6 @@ export const addWorkshopSchedule = async (req, res) => {
     if (!Number.isInteger(seatsTotal) || seatsTotal < 1) {
       return res.status(400).json({
         message: "Số chỗ phải là số nguyên lớn hơn 0",
-      });
-    }
-
-    const workshop = await Workshop.findOne({
-      _id: workshopId,
-      host: userId,
-    });
-
-    if (!workshop) {
-      return res.status(404).json({
-        message: "Không tìm thấy workshop hoặc bạn không có quyền chỉnh sửa",
       });
     }
 
@@ -921,7 +1007,7 @@ export const getNearbyWorkshops = async (req, res) => {
     }
 
     const workshops = await Workshop.find(query)
-      .select("title thumbnail price location categories schedules duration")
+      .select("title thumbnail price location categories schedules duration directDiscount")
       .limit(8);
 
     return res.status(200).json({
