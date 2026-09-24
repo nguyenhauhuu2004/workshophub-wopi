@@ -3,11 +3,11 @@ import {
   buildSystemPrompt,
 } from "../config/platformKnowledge.js";
 
-// Sử dụng model Flash mới nhất và Flash-lite (tốc độ phản hồi nhanh nhất của Google)
+// Sử dụng các model Gemini Flash tối ưu tốc độ và độ phản hồi cao
 const GEMINI_MODELS = [
-  "gemini-flash-latest",
-  "gemini-3.1-flash-lite",
-  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash",
 ];
 
 // Bộ nhớ cache tạm trạng thái hết credit để không lặp lại request chậm chạp
@@ -15,35 +15,128 @@ let cachedDepletedKey = null;
 let cachedDepletedUntil = 0;
 
 /**
- * Trả lời thông minh dựa trên tri thức nội bộ WoPi khi Gemini API
- * gặp sự cố quota, hết credit hoặc phản hồi chậm.
+ * Trả lời thông minh, tự nhiên và linh hoạt dựa trên tri thức nội bộ WoPi
+ * khi Gemini API gặp sự cố quota, mất kết nối hoặc phản hồi chậm.
  */
 const getKnowledgeFallback = (query) => {
-  const q = query.toLowerCase().trim();
+  const q = (query || "").toLowerCase().trim();
 
-  // 1. Thanh toán
+  // 1. Người dùng muốn trở thành Host / Mở lớp / Hợp tác tổ chức
   if (
-    q.includes("thanh toan") ||
-    q.includes("thanh toán") ||
-    q.includes("tien mat") ||
-    q.includes("tiền mặt") ||
-    q.includes("vietqr") ||
-    q.includes("chuyen khoan") ||
-    q.includes("chuyển khoản") ||
-    q.includes("gia") ||
-    q.includes("giá")
+    q.includes("lam host") ||
+    q.includes("làm host") ||
+    q.includes("tro thanh host") ||
+    q.includes("trở thành host") ||
+    q.includes("mo workshop") ||
+    q.includes("mở workshop") ||
+    q.includes("to chuc workshop") ||
+    q.includes("tổ chức workshop") ||
+    q.includes("hop tac") ||
+    q.includes("hợp tác") ||
+    q.includes("dang ky host") ||
+    q.includes("đăng ký host") ||
+    q.includes("nghe nhan") ||
+    q.includes("nghệ nhân") ||
+    q.includes("host")
   ) {
     return (
-      "### Chính sách thanh toán tại WoPi 💵\n\n" +
-      "Hiện tại WoPi áp dụng phương thức **Thanh toán tại workshop** (tiền mặt) cực kỳ tiện lợi:\n\n" +
-      "- **Không cần thanh toán trước:** Bạn chỉ cần chọn lịch và đặt chỗ, hệ thống sẽ xác nhận ngay lập tức.\n" +
-      "- **Nhận vé tức thì:** Vé điện tử kèm mã QR check-in được gửi ngay vào email và lưu trong tài khoản của bạn.\n" +
-      "- **Thanh toán tại chỗ:** Bạn chỉ cần trả tiền mặt trực tiếp cho Host khi đến tham gia workshop.\n" +
-      "- *Lưu ý:* Cổng chuyển khoản VietQR hiện đang tạm ngưng bảo trì để nâng cấp trải nghiệm."
+      "### Chào mừng bạn gia nhập cộng đồng Host tại WoPi! 🌟\n\n" +
+      "WoPi luôn chào đón những nghệ nhân, chuyên gia và người truyền cảm hứng cùng mở workshop sáng tạo! Để trở thành Host, bạn có thể kết nối ngay với đội ngũ WoPi qua các kênh sau nhé:\n\n" +
+      "- 📞 **Hotline / SĐT:** `0909 123 456` hoặc `1900 6868`\n" +
+      "- 💬 **Zalo hỗ trợ Host (24/7):** `0909 123 456` *(Zalo WOPI Workshop)*\n" +
+      "- ✉️ **Email tiếp nhận hồ sơ:** [host@wopi.life](mailto:host@wopi.life) hoặc [support@wopi.life](mailto:support@wopi.life)\n" +
+      "- 🌐 **Đăng ký online:** Bạn có thể đăng ký tài khoản và chọn vai trò **'Nghệ nhân / Host'** tại trang **[Đăng ký ngay](/signup)**, sau đó truy cập **[Bảng điều khiển Host](/host)** để quản lý workshop.\n\n" +
+      "**Quyền lợi khi đồng hành cùng WoPi:**\n" +
+      "✨ Tiếp cận hàng nghìn học viên yêu thích nghệ thuật & thủ công.\n" +
+      "📅 Công cụ tạo lịch lặp lại thông minh theo thứ trong tuần linh hoạt.\n" +
+      "🔥 Tùy chỉnh giảm giá trực tiếp trên card và phát hành mã voucher ưu đãi.\n" +
+      "📱 Quét mã QR check-in học viên nhanh chỉ trong 3 giây.\n\n" +
+      "> Đội ngũ WoPi sẽ liên hệ và hỗ trợ bạn setup workshop, hình ảnh và truyền thông trong vòng 24h làm việc!"
     );
   }
 
-  // 2. Đặt chỗ & Số điện thoại
+  // 2. Thanh toán & Thuế VAT
+  if (
+    q.includes("thanh toan") ||
+    q.includes("thanh toán") ||
+    q.includes("vietqr") ||
+    q.includes("chuyen khoan") ||
+    q.includes("chuyển khoản") ||
+    q.includes("tien mat") ||
+    q.includes("tiền mặt") ||
+    q.includes("vat") ||
+    q.includes("thue") ||
+    q.includes("thuế") ||
+    q.includes("phi") ||
+    q.includes("phí")
+  ) {
+    return (
+      "### Phương thức thanh toán tiện lợi tại WoPi 💳\n\n" +
+      "WoPi hỗ trợ 2 hình thức thanh toán an toàn và linh hoạt cho bạn lựa chọn:\n\n" +
+      "1. 📲 **Chuyển khoản QR (VietQR):** Quét mã QR thanh toán nhanh 24/7 qua bất kỳ ứng dụng ngân hàng nào. Hệ thống tự động xác nhận và phát hành vé điện tử tức thì.\n" +
+      "2. 💵 **Thanh toán tại workshop:** Đặt chỗ nhận vé trước hoàn toàn miễn phí, sau đó thanh toán trực tiếp cho Host khi bạn đến tham gia buổi học.\n\n" +
+      "🎉 **Đặc biệt:** WoPi áp dụng **chính sách 0% thuế VAT** cho toàn bộ học viên! Bạn chỉ cần thanh toán đúng giá vé đã niêm yết (hoặc giá đã giảm), tuyệt đối không phát sinh phụ phí ẩn."
+    );
+  }
+
+  // 3. Giảm giá, Khuyến mãi & Voucher
+  if (
+    q.includes("giam gia") ||
+    q.includes("giảm giá") ||
+    q.includes("voucher") ||
+    q.includes("khuyen mai") ||
+    q.includes("khuyến mãi") ||
+    q.includes("ma giam") ||
+    q.includes("mã giảm") ||
+    q.includes("coupon") ||
+    q.includes("uu dai") ||
+    q.includes("ưu đãi")
+  ) {
+    return (
+      "### Ưu đãi & Giảm giá hấp dẫn tại WoPi 🔥\n\n" +
+      "Tại WoPi, bạn có thể nhận ưu đãi qua 2 hình thức cực kỳ trực quan:\n\n" +
+      "- 🔥 **Giảm giá trực tiếp:** Hiển thị nổi bật ngay trên card workshop (gạch ngang giá gốc kèm huy hiệu ngọn lửa ưu đãi như *-20%*, *-50.000đ*). Giá khi bạn bấm đặt vé sẽ được tự động trừ thẳng cực kỳ tiết kiệm!\n" +
+      "- 🏷️ **Mã giảm giá (Voucher):** Nhập mã khuyến mãi do Host hoặc WoPi phát hành ở bước đặt chỗ để nhận thêm chiết khấu theo % hoặc số tiền cố định.\n\n" +
+      "> Bạn hãy ghé thăm trang chủ thường xuyên để săn các workshop đang có gắn nhãn ưu đãi giờ vàng nhé!"
+    );
+  }
+
+  // 4. Tư vấn chọn workshop theo nhu cầu, tâm trạng
+  if (
+    q.includes("hen ho") ||
+    q.includes("hẹn hò") ||
+    q.includes("cap doi") ||
+    q.includes("cặp đôi") ||
+    q.includes("nguoi yeu") ||
+    q.includes("người yêu") ||
+    q.includes("nhom") ||
+    q.includes("nhóm") ||
+    q.includes("ban be") ||
+    q.includes("bạn bè") ||
+    q.includes("stress") ||
+    q.includes("thu gian") ||
+    q.includes("thư giãn") ||
+    q.includes("xa stress") ||
+    q.includes("xả stress") ||
+    q.includes("moi bat dau") ||
+    q.includes("mới bắt đầu") ||
+    q.includes("goi y") ||
+    q.includes("gợi ý") ||
+    q.includes("tu van") ||
+    q.includes("tư vấn")
+  ) {
+    return (
+      "### Gợi ý workshop lý tưởng theo sở thích của bạn ✨\n\n" +
+      "Mình có một số gợi ý tuyệt vời dành riêng cho bạn đây:\n\n" +
+      "- 💑 **Dành cho cặp đôi / Hẹn hò lãng mạn:** Thử ngay workshop **Làm gốm đôi**, **Vẽ tranh cùng nhau** hoặc **Làm nến thơm** tự mix mùi hương kỷ niệm của hai bạn.\n" +
+      "- 👥 **Đi cùng nhóm bạn thân:** Rủ bạn bè tham gia **Làm bánh ngọt / Pizza**, **Pha chế cocktail / cà phê thủ công**, hoặc thử sức làm mộc DIY độc đáo.\n" +
+      "- 🌿 **Xả stress & Chữa lành tâm hồn:** Đắm chìm vào **Vẽ tranh màu nước**, **Cắm hoa phong cách Hàn Quốc**, **Đan len móc** hoặc buổi thiền **Yoga & Chuông xoay** an yên.\n" +
+      "- 🎨 **Người mới bắt đầu (Beginners):** Rất thích hợp với **Làm nến thơm hoa khô**, **Khảm mosaic nghệ thuật** hoặc **Nặn gốm tự do** — các Host đều hướng dẫn cực kỳ tận tình từ A-Z!\n\n" +
+      "Bạn thích phong cách nào nhất? Hãy nhắn mình thể loại cụ thể để mình gợi ý chi tiết hơn nhé!"
+    );
+  }
+
+  // 5. Quy trình đặt chỗ & Số điện thoại
   if (
     q.includes("dat cho") ||
     q.includes("đặt chỗ") ||
@@ -58,101 +151,58 @@ const getKnowledgeFallback = (query) => {
   ) {
     return (
       "### Hướng dẫn đặt chỗ workshop 🎫\n\n" +
-      "Quy trình đặt chỗ trên WoPi gồm các bước đơn giản sau:\n\n" +
-      "1. Chọn workshop bạn yêu thích và chọn khung giờ còn chỗ trống.\n" +
-      "2. Chọn số lượng người tham gia.\n" +
-      "3. Điền thông tin người tham dự: Họ tên, Email và **Số điện thoại** (*bắt buộc* để Host liên hệ hỗ trợ).\n" +
-      "4. Tích chọn *'Lưu thông tin này cho lần sau'* để hệ thống tự động điền ở những lần đặt kế tiếp.\n" +
+      "Quy trình đặt chỗ trên WoPi vô cùng nhanh chóng chỉ với vài bước:\n\n" +
+      "1. Chọn workshop bạn thích và bấm vào ngày/khung giờ còn chỗ trống.\n" +
+      "2. Chọn số lượng người tham dự.\n" +
+      "3. Điền thông tin: Họ tên, Email và **Số điện thoại** (*bắt buộc* để Host liên hệ xác nhận & hướng dẫn khi đến lớp).\n" +
+      "4. Nhập mã voucher ưu đãi (nếu có) và chọn hình thức thanh toán (VietQR hoặc Thanh toán tại workshop).\n" +
       "5. Bấm **'Đặt chỗ & Nhận vé ngay'** để hoàn tất!\n\n" +
-      "> 💡 **Mẹo:** Trên điện thoại, bạn có thể bấm nút **Đặt chỗ ngay** nổi ở dưới màn hình để mở nhanh khung đặt chỗ."
+      "> 💡 **Mẹo:** Trên điện thoại, bạn có thể bấm nút **Đặt chỗ ngay** nổi ở góc dưới để mở thanh đặt chỗ tiện lợi bất cứ lúc nào."
     );
   }
 
-  // 3. Vé & Check-in
+  // 6. Vé điện tử, Check-in & Hủy chỗ
   if (
     q.includes("ve") ||
     q.includes("vé") ||
     q.includes("check in") ||
     q.includes("check-in") ||
     q.includes("checkin") ||
-    q.includes("ma qr") ||
-    q.includes("mã qr")
-  ) {
-    return (
-      "### Vé điện tử & Quy trình Check-in 📱\n\n" +
-      "- **Nhận vé:** Ngay sau khi đặt chỗ thành công, vé điện tử có mã QR check-in sẽ được gửi vào email của bạn.\n" +
-      "- **Quản lý vé:** Bạn có thể xem lại toàn bộ vé đã đặt tại trang **[Đơn đặt chỗ của tôi](/my-bookings)**.\n" +
-      "- **Cách check-in:** Khi đến buổi workshop, bạn chỉ cần mở vé trên điện thoại để Host quét mã QR xác nhận tham dự.\n" +
-      "- Mỗi vé có một mã QR và mã booking riêng biệt để đảm bảo tính an toàn."
-    );
-  }
-
-  // 4. Hủy đơn đặt chỗ
-  if (
     q.includes("huy") ||
     q.includes("hủy") ||
     q.includes("hoan tien") ||
-    q.includes("hoàn tiền") ||
-    q.includes("khong di") ||
-    q.includes("không đi")
+    q.includes("hoàn tiền")
   ) {
     return (
-      "### Chính sách hủy đơn đặt chỗ 🔄\n\n" +
-      "- **Chủ động hủy đơn:** Với các đơn thanh toán tại workshop, bạn có thể **tự bấm Hủy đơn bất cứ lúc nào trước khi check-in** tại trang **[Đơn đặt chỗ của tôi](/my-bookings)**.\n" +
-      "- **Giải phóng chỗ:** Ngay khi bạn hủy đơn, chỗ trống sẽ tự động được hoàn trả lại cho workshop để người khác có thể đăng ký tham gia.\n" +
-      "- Không phát sinh bất kỳ khoản phí phạt nào khi bạn hủy đơn trước giờ tổ chức."
+      "### Vé điện tử & Chính sách Hủy chỗ miễn phí 📱\n\n" +
+      "- **Nhận vé tức thì:** Ngay sau khi đặt thành công, vé điện tử kèm mã QR check-in được gửi vào Email và lưu trữ tại mục **[Đơn đặt chỗ của tôi](/my-bookings)**.\n" +
+      "- **Check-in 3 giây:** Khi đến buổi workshop, bạn chỉ cần mở mã QR trên điện thoại để Host quét mã xác nhận tham dự.\n" +
+      "- **Hủy chỗ linh hoạt:** Nếu có việc đột xuất, bạn có thể **tự bấm 'Hủy đơn'** trực tiếp trong trang quản lý vé bất cứ lúc nào trước giờ tổ chức. Hoàn toàn miễn phí và không bị phạt!"
     );
   }
 
-  // 5. Host / Người tổ chức
-  if (
-    q.includes("host") ||
-    q.includes("to chuc") ||
-    q.includes("tổ chức") ||
-    q.includes("tao workshop") ||
-    q.includes("tạo workshop") ||
-    q.includes("dang ky") ||
-    q.includes("đăng ký") ||
-    q.includes("doanh thu")
-  ) {
-    return (
-      "### Dành cho Người tổ chức Workshop (Host) 🌟\n\n" +
-      "WoPi cung cấp đầy đủ công cụ giúp Host quản lý và phát triển workshop dễ dàng:\n\n" +
-      "1. **Tạo workshop mới:** Đăng tải nội dung, hình ảnh, video và thiết lập các lịch tổ chức tại mục **[Tạo workshop](/workshops/create)**.\n" +
-      "2. **Trung tâm quản lý Host (`/host`):** Theo dõi biểu đồ doanh thu, danh sách khách hàng và số điện thoại người tham dự.\n" +
-      "3. **Quét mã Check-in tại chỗ:** Công cụ quét mã QR trên điện thoại hoặc nhập mã vé để xác nhận khách đến và tự động cập nhật trạng thái đã thu tiền.\n" +
-      "4. **Gói tài trợ quảng bá (Promotions):** Đẩy workshop lên vị trí nổi bật trên trang chủ để tiếp cận hàng nghìn khách hàng."
-    );
-  }
-
-  // 6. Danh mục workshop
+  // 7. Danh mục workshop
   if (
     q.includes("danh muc") ||
     q.includes("danh mục") ||
     q.includes("the loai") ||
     q.includes("thể loại") ||
-    q.includes("gom") ||
-    q.includes("gốm") ||
-    q.includes("ve") ||
-    q.includes("vẽ") ||
-    q.includes("nen") ||
-    q.includes("nến") ||
-    q.includes("banh") ||
-    q.includes("bánh") ||
-    q.includes("da") ||
-    q.includes("len")
+    q.includes("cac loai") ||
+    q.includes("các loại")
   ) {
     const list = PLATFORM_KNOWLEDGE.categories
-      .map((c) => `- **${c.name}:** ${c.desc}`)
+      .slice(0, 10)
+      .map((c) => `• **${c.name}:** ${c.desc}`)
       .join("\n");
     return (
-      "### Các danh mục workshop nổi bật tại WoPi 🎨\n\n" +
+      "### Khám phá 17 danh mục workshop đa dạng tại WoPi 🎨\n\n" +
       list +
-      "\n\n> Hãy nhập tên workshop bạn yêu thích vào ô tìm kiếm trên trang chủ để xem các lịch tổ chức gần nhất nhé!"
+      "\n• Và nhiều thể loại độc đáo khác như: *Nhiếp ảnh, Pha chế, Yoga & Thiền, Thủ công DIY, Khác...*\n\n" +
+      "👉 Bạn có thể lọc nhanh theo danh mục ngay trên thanh điều hướng trang chủ nhé!"
     );
   }
 
-  // 7. Vị trí & Chỉ đường
+  // 8. Vị trí, Bản đồ & Tìm kiếm Gần tôi
   if (
     q.includes("chi duong") ||
     q.includes("chỉ đường") ||
@@ -167,22 +217,22 @@ const getKnowledgeFallback = (query) => {
   ) {
     return (
       "### Tìm kiếm & Chỉ đường thông minh 📍\n\n" +
-      "- **Tính năng 'Gần tôi':** WoPi tự động định vị GPS thiết bị của bạn và sắp xếp các workshop từ gần đến xa kèm khoảng cách thực tế (km/m).\n" +
-      "- **Bản đồ tương tác Goong Maps:** Hiển thị vị trí chính xác của từng workshop.\n" +
-      "- **Nút 'Chỉ đường':** Bấm vào nút chỉ đường trong trang chi tiết để tự động mở ứng dụng Google Maps hoặc Apple Maps trên điện thoại để điều hướng đường đi."
+      "- **Tính năng 'Gần tôi':** Bật định vị vị trí để WoPi tự động tính toán khoảng cách (km) và sắp xếp các workshop gần bạn nhất.\n" +
+      "- **Bản đồ Goong Maps:** Xem tọa độ chính xác của từng workshop trên bản đồ tương tác.\n" +
+      "- **Nút 'Chỉ đường':** Bấm một chạm trên trang chi tiết để mở ngay Google Maps hoặc Apple Maps dẫn đường đến tận nơi."
     );
   }
 
-  // Mặc định: Giới thiệu tổng quan
+  // Mặc định: Phản hồi thân thiện, cởi mở và linh hoạt
   return (
     `### Xin chào bạn! Mình là Trợ lý ảo WoPi ✨\n\n` +
-    `**${PLATFORM_KNOWLEDGE.generalInfo.name}** là nền tảng kết nối những người yêu thích sáng tạo và trải nghiệm thực tế.\n\n` +
-    `Bạn có thể hỏi mình nhanh về các chủ đề sau:\n\n` +
-    `- **Đặt chỗ & Thanh toán:** Cách chọn lịch, điền SĐT bắt buộc và thanh toán tiền mặt tại workshop.\n` +
-    `- **Vé điện tử & Check-in:** Xem mã QR vé và cách quét mã khi đến nơi.\n` +
-    `- **Dành cho Host:** Cách đăng ký tạo workshop và theo dõi doanh thu.\n` +
-    `- **Tìm kiếm:** Cách tìm workshop theo khoảng cách gần tôi và chỉ đường bản đồ.\n\n` +
-    `*Bạn có thể bấm vào các câu hỏi gợi ý bên dưới hoặc nhập câu hỏi cụ thể nhé!*`
+    `Rất vui được đồng hành cùng bạn! Mình có thể giải đáp mọi thắc mắc và gợi ý những trải nghiệm tuyệt vời nhất tại WoPi:\n\n` +
+    `🎨 **Tư vấn workshop:** Gợi ý hoạt động hẹn hò cặp đôi, đi nhóm bạn, xả stress cuối tuần.\n` +
+    `🌟 **Dành cho Host:** Hướng dẫn mở workshop, liên hệ Hotline/Zalo \`0909 123 456\`, Email \`host@wopi.life\`.\n` +
+    `💳 **Thanh toán & Đặt vé:** Quét mã VietQR 24/7, thanh toán tại chỗ, chính sách 0% VAT.\n` +
+    `🔥 **Ưu đãi:** Giảm giá trực tiếp trên thẻ workshop và mã voucher khuyến mãi.\n` +
+    `📍 **Địa điểm:** Tìm workshop gần bạn và chỉ đường Goong Maps tiện lợi.\n\n` +
+    `*Bạn đang quan tâm đến chủ đề nào, hãy chia sẻ cùng mình nhé!* 😊`
   );
 };
 
@@ -219,9 +269,9 @@ export const chatWithAssistant = async (req, res) => {
     // Chuẩn bị payload tối ưu
     const contents = [];
 
-    // Chỉ lấy 4 lượt hội thoại gần nhất để tối ưu token & tăng tốc độ sinh phản hồi
+    // Lấy 6 lượt hội thoại gần nhất (3 cặp hỏi - đáp) để giữ mạch trò chuyện tự nhiên
     if (Array.isArray(history)) {
-      const recentHistory = history.slice(-4);
+      const recentHistory = history.slice(-6);
       for (const item of recentHistory) {
         if (item.text && item.role) {
           contents.push({
@@ -243,19 +293,19 @@ export const chatWithAssistant = async (req, res) => {
       },
       contents,
       generationConfig: {
-        temperature: 0.6,
-        maxOutputTokens: 800, // Giới hạn token để phản hồi nhanh hơn
+        temperature: 0.7,
+        maxOutputTokens: 1000, // Đảm bảo câu trả lời phong phú, chi tiết và không bị ngắt quãng
       },
     };
 
     let replyText = null;
     let lastError = null;
 
-    // Thử lần lượt các model với timeout chặt chẽ (tối đa 2.5s mỗi model)
+    // Thử lần lượt các model với timeout 4.0s mỗi model để AI có đủ thời gian phản hồi tự nhiên
     for (const model of GEMINI_MODELS) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,

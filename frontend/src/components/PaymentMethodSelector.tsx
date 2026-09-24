@@ -2,9 +2,10 @@ import { Banknote, QrCode } from "lucide-react";
 import type { BookingPaymentMethod } from "@/types/booking";
 
 type PaymentMethodSelectorProps = {
-  value: BookingPaymentMethod;
+  value?: BookingPaymentMethod | "";
   onChange: (method: BookingPaymentMethod) => void;
   disabled?: boolean;
+  hasError?: boolean;
 };
 
 type PaymentMethodItem = {
@@ -19,18 +20,16 @@ type PaymentMethodItem = {
 
 const METHODS: PaymentMethodItem[] = [
   {
-    value: "pay_at_venue",
-    icon: <Banknote className="size-5" />,
-    title: "Thanh toán tại workshop",
-    description: "Trả tiền mặt khi đến nơi — nhận vé điện tử ngay sau khi đặt",
-    badge: "Khuyên dùng",
-    badgeColor: "bg-emerald-100 text-emerald-700",
-  },
-  {
     value: "qr",
     icon: <QrCode className="size-5" />,
     title: "Chuyển khoản QR (VietQR)",
     description: "Chuyển khoản nhanh 24/7 qua mã VietQR — xác nhận tự động",
+  },
+  {
+    value: "pay_at_venue",
+    icon: <Banknote className="size-5" />,
+    title: "Thanh toán tại workshop",
+    description: "Trả tiền mặt khi đến nơi — nhận vé điện tử ngay sau khi đặt",
   },
 ];
 
@@ -38,10 +37,20 @@ const PaymentMethodSelector = ({
   value,
   onChange,
   disabled = false,
+  hasError = false,
 }: PaymentMethodSelectorProps) => {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold">Phương thức thanh toán</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">
+          Phương thức thanh toán <span className="text-red-500">*</span>
+        </p>
+        {hasError && (
+          <span className="text-xs font-medium text-red-500 animate-pulse">
+            Chưa chọn phương thức
+          </span>
+        )}
+      </div>
 
       {METHODS.map((method) => {
         const isSelected = value === method.value;
@@ -61,6 +70,8 @@ const PaymentMethodSelector = ({
               "w-full rounded-2xl border p-4 text-left transition",
               isSelected
                 ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : hasError && !value
+                ? "border-red-300 bg-red-50/20 hover:border-red-400"
                 : "hover:border-primary/40 hover:bg-muted/40",
               isItemDisabled
                 ? "cursor-not-allowed opacity-55 bg-muted/30"

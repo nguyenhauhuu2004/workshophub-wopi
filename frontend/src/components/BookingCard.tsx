@@ -102,7 +102,8 @@ const BookingCard = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("pay_at_venue");
+  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod | "">("");
+  const [paymentError, setPaymentError] = useState(false);
 
   const [couponInput, setCouponInput] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
@@ -228,6 +229,12 @@ const BookingCard = ({
 
     if (!info.phone.trim()) {
       toast.error("Vui lòng nhập số điện thoại người tham dự");
+      return;
+    }
+
+    if (!paymentMethod) {
+      setPaymentError(true);
+      toast.error("Vui lòng chọn phương thức thanh toán");
       return;
     }
 
@@ -393,8 +400,12 @@ const BookingCard = ({
       {/* Chọn phương thức thanh toán */}
       <PaymentMethodSelector
         value={paymentMethod}
-        onChange={setPaymentMethod}
+        onChange={(method) => {
+          setPaymentMethod(method);
+          setPaymentError(false);
+        }}
         disabled={isSubmitting}
+        hasError={paymentError}
       />
 
       {/* Mã giảm giá */}
@@ -481,15 +492,19 @@ const BookingCard = ({
           </>
         ) : paymentMethod === "qr" ? (
           "Đặt chỗ & Thanh toán QR"
-        ) : (
+        ) : paymentMethod === "pay_at_venue" ? (
           "Đặt chỗ & Nhận vé ngay"
+        ) : (
+          "Xác nhận đặt chỗ"
         )}
       </Button>
 
       <p className="mt-3 text-center text-xs text-muted-foreground">
         {paymentMethod === "qr"
           ? "Chuyển khoản an toàn và tiện lợi qua mã VietQR 24/7."
-          : "Vé điện tử sẽ được gửi vào email của bạn ngay sau khi đặt."}
+          : paymentMethod === "pay_at_venue"
+          ? "Vé điện tử sẽ được gửi vào email của bạn ngay sau khi đặt."
+          : "Vui lòng chọn phương thức thanh toán trước khi xác nhận đặt chỗ."}
       </p>
     </div>
   );

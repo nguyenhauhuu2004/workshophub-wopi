@@ -69,7 +69,7 @@ export const createBooking = async (req, res) => {
       workshopId,
       sessionId,
       quantity,
-      paymentMethod = "qr",
+      paymentMethod,
       discountCode,
       attendeeName: bodyAttendeeName,
       attendeeEmail: bodyAttendeeEmail,
@@ -85,9 +85,9 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    if (!["qr", "pay_at_venue"].includes(paymentMethod)) {
+    if (!paymentMethod || !["qr", "pay_at_venue"].includes(paymentMethod)) {
       return res.status(400).json({
-        message: "Phương thức thanh toán không hợp lệ",
+        message: "Vui lòng chọn phương thức thanh toán hợp lệ",
       });
     }
 

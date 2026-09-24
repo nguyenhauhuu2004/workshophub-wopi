@@ -154,6 +154,11 @@ export function WorkshopDetail() {
         return;
       }
 
+      if (!bookingData.paymentMethod) {
+        toast.error("Vui lòng chọn phương thức thanh toán");
+        return;
+      }
+
       try {
         setBooking(true);
 
